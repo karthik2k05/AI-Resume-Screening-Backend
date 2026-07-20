@@ -58,23 +58,47 @@ const io = new Server(server, {
 });
 
 io.on("connection", (socket) => {
-  console.log("🟢 Client Connected:", socket.id);
 
-  socket.on("candidate_message", (data) => {
-    console.log("Candidate:", data);
+    console.log("🟢 Connected:", socket.id);
 
-    io.emit("admin_receive_message", data);
-  });
+    // Candidate joins a private room
+    socket.on("join_candidate_room", (candidateId) => {
 
-  socket.on("admin_message", (data) => {
-    console.log("Admin:", data);
+        socket.join(candidateId);
 
-    io.emit("candidate_receive_message", data);
-  });
+        console.log(`${candidateId} joined`);
 
-  socket.on("disconnect", () => {
-    console.log("🔴 Client Disconnected:", socket.id);
-  });
+    });
+
+    // Admin joins admin room
+    socket.on("join_admin", () => {
+
+        socket.join("admins");
+
+        console.log("Admin Joined");
+
+    });
+
+    // Candidate sends message
+    socket.on("candidate_message", (data) => {
+
+        io.to("admins").emit("admin_receive_message", data);
+
+    });
+
+    // Admin replies
+    socket.on("admin_message", (data) => {
+
+        io.to(data.room).emit("candidate_receive_message", data);
+
+    });
+
+    socket.on("disconnect", () => {
+
+        console.log("Disconnected:", socket.id);
+
+    });
+
 });
 
 /* Start Server */
