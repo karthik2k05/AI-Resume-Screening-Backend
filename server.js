@@ -20,7 +20,7 @@ app.use(
   cors({
     origin: [
       "http://localhost:5173",
-      "https://ai-resume-screening-frontend.onrender.com/",
+      "https://ai-resume-screening-frontend.onrender.com",
     ],
     credentials: true,
   })
@@ -50,7 +50,7 @@ const io = new Server(server, {
   cors: {
     origin: [
       "http://localhost:5173",
-      "https://ai-resume-screening-frontend.onrender.com/",
+      "https://ai-resume-screening-frontend.onrender.com",
     ],
     methods: ["GET", "POST"],
     credentials: true,
@@ -61,10 +61,13 @@ io.on("connection", (socket) => {
   console.log("🟢 Connected:", socket.id);
 
   // Candidate joins private room
-  socket.on("join_candidate_room", (candidateId) => {
-    socket.join(candidateId);
-    console.log(`${candidateId} joined`);
-  });
+ socket.on("join_candidate_room", (candidateId) => {
+  socket.join(candidateId);
+
+  console.log(`${candidateId} joined`);
+
+  console.log("Rooms:", [...socket.rooms]);
+});
 
   // Admin joins admin room
   socket.on("join_admin", () => {
@@ -81,10 +84,14 @@ io.on("connection", (socket) => {
 
   // Admin → Candidate
   socket.on("admin_message", (data) => {
-    console.log("Admin:", data);
+  console.log("Admin:", data);
 
-    io.to(data.room).emit("candidate_receive_message", data);
-  });
+  console.log("Sending to room:", data.room);
+
+  io.to(data.room).emit("candidate_receive_message", data);
+
+  console.log("Reply emitted");
+});
 
   socket.on("disconnect", () => {
     console.log("🔴 Disconnected:", socket.id);
