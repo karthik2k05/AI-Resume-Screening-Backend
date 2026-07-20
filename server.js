@@ -81,7 +81,7 @@ io.on("connection", (socket) => {
 
     // Candidate sends message
     socket.on("candidate_message", (data) => {
-
+      console.log("Candidate:", data);
         io.to("admins").emit("admin_receive_message", data);
 
     });
