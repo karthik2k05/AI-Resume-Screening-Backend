@@ -58,47 +58,37 @@ const io = new Server(server, {
 });
 
 io.on("connection", (socket) => {
+  console.log("🟢 Connected:", socket.id);
 
-    console.log("🟢 Connected:", socket.id);
+  // Candidate joins private room
+  socket.on("join_candidate_room", (candidateId) => {
+    socket.join(candidateId);
+    console.log(`${candidateId} joined`);
+  });
 
-    // Candidate joins a private room
-    socket.on("join_candidate_room", (candidateId) => {
+  // Admin joins admin room
+  socket.on("join_admin", () => {
+    socket.join("admins");
+    console.log("🛡️ Admin Joined");
+  });
 
-        socket.join(candidateId);
+  // Candidate → Admin
+  socket.on("candidate_message", (data) => {
+    console.log("Candidate:", data);
 
-        console.log(`${candidateId} joined`);
+    io.to("admins").emit("admin_receive_message", data);
+  });
 
-    });
+  // Admin → Candidate
+  socket.on("admin_message", (data) => {
+    console.log("Admin:", data);
 
-    // Admin joins admin room
-    socket.on("join_admin", () => {
+    io.to(data.room).emit("candidate_receive_message", data);
+  });
 
-        socket.join("admins");
-
-        console.log("Admin Joined");
-
-    });
-
-    // Candidate sends message
-    socket.on("candidate_message", (data) => {
-      console.log("Candidate:", data);
-        io.to("admins").emit("admin_receive_message", data);
-
-    });
-
-    // Admin replies
-    socket.on("admin_message", (data) => {
-
-        io.to(data.room).emit("candidate_receive_message", data);
-
-    });
-
-    socket.on("disconnect", () => {
-
-        console.log("Disconnected:", socket.id);
-
-    });
-
+  socket.on("disconnect", () => {
+    console.log("🔴 Disconnected:", socket.id);
+  });
 });
 
 /* Start Server */
