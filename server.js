@@ -1,5 +1,6 @@
 require("dotenv").config();
-require("./config/db");
+const axios = require("axios");
+const pool = require("./config/db");
 
 const express = require("express");
 const cors = require("cors");
@@ -76,21 +77,39 @@ io.on("connection", (socket) => {
   });
 
   // Candidate → Admin
-  socket.on("candidate_message", (data) => {
-    console.log("Candidate:", data);
+  socket.on("candidate_message", async (data) => {
+  console.log("Candidate:", data);
+
+  try {
+    await pool.query(
+      `INSERT INTO support_messages(candidate_id, sender, message)
+       VALUES($1, $2, $3)`,
+      [data.candidateId, "candidate", data.message]
+    );
 
     io.to("admins").emit("admin_receive_message", data);
-  });
+
+  } catch (err) {
+    console.error(err);
+  }
+});
 
   // Admin → Candidate
-  socket.on("admin_message", (data) => {
+socket.on("admin_message", async (data) => {
   console.log("Admin:", data);
 
-  console.log("Sending to room:", data.room);
+  try {
+    await pool.query(
+      `INSERT INTO support_messages(candidate_id, sender, message)
+       VALUES($1, $2, $3)`,
+      [data.candidateId, "admin", data.message]
+    );
 
-  io.to(data.room).emit("candidate_receive_message", data);
+    io.to(data.room).emit("candidate_receive_message", data);
 
-  console.log("Reply emitted");
+  } catch (err) {
+    console.error(err);
+  }
 });
 
   socket.on("disconnect", () => {

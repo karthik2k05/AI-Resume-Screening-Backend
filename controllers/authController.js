@@ -127,6 +127,11 @@ const login = async (req, res) => {
       success: true,
       message: "Login Successful",
       token,
+       user: {
+        id: user.user_id,
+        name: user.name,
+        email: user.email,
+    },
     });
 
   } catch (error) {
@@ -206,7 +211,11 @@ const googleLogin = async (req, res) => {
       success: true,
       message: "Google Login Successful",
       token,
-      user,
+      user: {
+    id: user.user_id,
+    name: user.name,
+    email: user.email,
+  },
     });
 
   } catch (error) {
