@@ -12,6 +12,7 @@ const resumeRoutes = require("./routes/resumeRoutes");
 const hrRoutes = require("./routes/hrRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const supportRoutes = require("./routes/supportRoutes");
+const searchRoutes = require("./routes/searchRoutes");
 
 const app = express();
 
@@ -36,6 +37,7 @@ app.use("/api/resume", resumeRoutes);
 app.use("/api/hr", hrRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/support", supportRoutes);
+app.use("/api/search", searchRoutes);
 
 app.get("/", (req, res) => {
   res.send("AI Resume Screening Backend Running...");
