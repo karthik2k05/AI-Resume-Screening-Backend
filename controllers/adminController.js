@@ -95,15 +95,29 @@ const getCandidates = async (req, res) => {
     const result = await pool.query(
       `
       SELECT
-        user_id,
-        name,
-        email,
-        role,
-        created_at
-      FROM users
-      WHERE role = 'CANDIDATE'
-      ORDER BY created_at DESC
-      LIMIT $1 OFFSET $2
+    u.user_id,
+    u.name,
+    u.email,
+    j.job_title AS role,
+    COALESCE(a.status, 'Applied') AS status,
+    COALESCE(s.overall_score, 0) AS score
+
+FROM users u
+
+LEFT JOIN applications a
+ON u.user_id = a.user_id
+
+LEFT JOIN ats_scores s
+ON a.application_id = s.application_id
+
+LEFT JOIN jobs j
+ON a.job_id = j.job_id
+
+WHERE u.role = 'CANDIDATE'
+
+ORDER BY u.created_at DESC
+
+LIMIT $1 OFFSET $2;
       `,
       [limit, offset]
     );
