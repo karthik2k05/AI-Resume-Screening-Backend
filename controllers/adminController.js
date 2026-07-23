@@ -72,6 +72,63 @@ const getAllJobs = async (req, res) => {
     });
   }
 };
+// Get Candidates with Pagination
+const getCandidates = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+
+    const offset = (page - 1) * limit;
+
+    // Total candidates
+    const totalResult = await pool.query(
+      `
+      SELECT COUNT(*) AS total
+      FROM users
+      WHERE role = 'CANDIDATE'
+      `
+    );
+
+    const totalRecords = parseInt(totalResult.rows[0].total);
+
+    // Fetch current page
+    const result = await pool.query(
+      `
+      SELECT
+        user_id,
+        name,
+        email,
+        role,
+        created_at
+      FROM users
+      WHERE role = 'CANDIDATE'
+      ORDER BY created_at DESC
+      LIMIT $1 OFFSET $2
+      `,
+      [limit, offset]
+    );
+
+    res.status(200).json({
+      success: true,
+      data: result.rows,
+
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(totalRecords / limit),
+        totalRecords,
+        limit,
+      },
+    });
+
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+  }
+};
 // Delete Job
 const deleteJob = async (req, res) => {
   try {
@@ -124,4 +181,5 @@ module.exports = {
   getDashboardStats,
   getAllJobs,
     deleteJob,
+    getCandidates,
 };

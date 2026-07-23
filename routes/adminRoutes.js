@@ -7,6 +7,7 @@ const {
   getDashboardStats,
   getAllJobs,
   deleteJob,
+  getCandidates,
 } = require("../controllers/adminController");
 
 router.get(
@@ -18,6 +19,11 @@ router.get(
   "/jobs",
   verifyToken,
   getAllJobs
+);
+router.get(
+  "/candidates",
+  verifyToken,
+  getCandidates
 );
 router.delete(
   "/jobs/:id",
