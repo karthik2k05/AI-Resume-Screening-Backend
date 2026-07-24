@@ -65,11 +65,13 @@ io.on("connection", (socket) => {
 
   // Candidate joins private room
  socket.on("join_candidate_room", (candidateId) => {
+
   socket.join(candidateId);
 
-  console.log(`${candidateId} joined`);
+  console.log("Candidate joined room:", candidateId);
 
-  console.log("Rooms:", [...socket.rooms]);
+  console.log("Socket Rooms:", [...socket.rooms]);
+
 });
 
   // Admin joins admin room
@@ -112,7 +114,7 @@ socket.on("admin_message", async (data) => {
        VALUES($1, $2, $3)`,
       [data.candidateId, "admin", data.message]
     );
-
+    console.log("Sending reply to room:", data.room);
     io.to(data.room).emit("candidate_receive_message", data);
     io.to(data.room).emit("new_candidate_notification", {
   candidateId: data.candidateId,
