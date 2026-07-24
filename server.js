@@ -90,6 +90,12 @@ io.on("connection", (socket) => {
     );
 
     io.to("admins").emit("admin_receive_message", data);
+    console.log("📢 Sending admin notification");
+    io.to("admins").emit("new_admin_notification", {
+    candidateId: data.candidateId,
+    message: data.message,
+    username: data.username,
+    });
 
   } catch (err) {
     console.error(err);
@@ -108,6 +114,10 @@ socket.on("admin_message", async (data) => {
     );
 
     io.to(data.room).emit("candidate_receive_message", data);
+    io.to(data.room).emit("new_candidate_notification", {
+  candidateId: data.candidateId,
+  message: data.message,
+});
 
   } catch (err) {
     console.error(err);
