@@ -176,6 +176,37 @@ const getConversations = async (req, res) => {
     });
   }
 };
+    // ================= GET ALL FEEDBACKS =================
+
+const getAllFeedbacks = async (req, res) => {
+  try {
+
+    const result = await pool.query(`
+      SELECT
+        sf.feedback_id,
+        sf.candidate_id,
+        u.name AS candidate_name,
+        u.email,
+        sf.rating,
+        sf.comments,
+        sf.created_at
+      FROM support_feedback sf
+      JOIN users u
+        ON sf.candidate_id = u.user_id
+      ORDER BY sf.created_at DESC;
+    `);
+
+    res.status(200).json(result.rows);
+
+  } catch (err) {
+    console.error(err);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch feedbacks.",
+    });
+  }
+};
 
 
 module.exports = {
@@ -184,4 +215,5 @@ module.exports = {
   getChatHistory,
   getConversations,
   submitFeedback,
+  getAllFeedbacks,
 };
