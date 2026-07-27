@@ -125,11 +125,19 @@ socket.on("admin_message", async (data) => {
     console.error(err);
   }
 });
+socket.on("end_chat", (data) => {
+  console.log("Ending chat for:", data.candidateId);
+
+  io.to(data.candidateId.toString()).emit("candidate_chat_closed");
+
+  console.log("candidate_chat_closed emitted");
+});
 
   socket.on("disconnect", () => {
     console.log("🔴 Disconnected:", socket.id);
   });
 });
+    
 
 /* Start Server */
 
