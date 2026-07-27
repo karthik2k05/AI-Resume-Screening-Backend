@@ -140,6 +140,42 @@ const getConversations = async (req, res) => {
     });
   }
 };
+    const submitFeedback = async (req, res) => {
+  try {
+    const { candidateId, rating, comments } = req.body;
+
+    if (!candidateId || !rating) {
+      return res.status(400).json({
+        success: false,
+        message: "Candidate ID and rating are required.",
+      });
+    }
+
+    const result = await pool.query(
+      `
+      INSERT INTO support_feedback
+      (candidate_id, rating, comments)
+      VALUES ($1, $2, $3)
+      RETURNING *;
+      `,
+      [candidateId, rating, comments]
+    );
+
+    res.status(201).json({
+      success: true,
+      message: "Feedback submitted successfully.",
+      feedback: result.rows[0],
+    });
+
+  } catch (err) {
+    console.error(err);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to submit feedback.",
+    });
+  }
+};
 
 
 module.exports = {
@@ -147,4 +183,5 @@ module.exports = {
   saveChatMessage,
   getChatHistory,
   getConversations,
+  submitFeedback,
 };
