@@ -51,7 +51,7 @@ const saveChatMessage = async (req, res) => {
     const result = await pool.query(
       `
       INSERT INTO support_messages
-      (candidate_id, sender, username, message)
+      (candidate_id, sender, message)
       VALUES ($1,$2,$3)
       RETURNING *
       `,
