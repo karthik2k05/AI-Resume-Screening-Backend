@@ -8,6 +8,7 @@ const http = require("http");
 const { Server } = require("socket.io");
 
 const authRoutes = require("./routes/authRoutes");
+const adminRoutes = require("./routes/adminRoutes");
 const supportRoutes = require("./routes/supportRoutes");
 const searchRoutes = require("./routes/searchRoutes");
 
@@ -30,6 +31,7 @@ app.use(express.json());
 /* Routes */
 
 app.use("/api/auth", authRoutes);
+app.use("/api/admin", adminRoutes);
 app.use("/api/support", supportRoutes);
 app.use("/api/search", searchRoutes);
 
