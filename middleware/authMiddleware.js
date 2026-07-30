@@ -1,11 +1,9 @@
 const jwt = require("jsonwebtoken");
 
-const verifyToken = (req, res, next) => {
+const authenticateToken = (req, res, next) => {
   try {
-    // Get Authorization header
     const authHeader = req.headers.authorization;
 
-    // Check if token exists
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({
         success: false,
@@ -13,15 +11,10 @@ const verifyToken = (req, res, next) => {
       });
     }
 
-    // Extract token
     const token = authHeader.split(" ")[1];
-
-    // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Save user data in request
     req.user = decoded;
-
     next();
   } catch (error) {
     return res.status(401).json({
@@ -31,4 +24,32 @@ const verifyToken = (req, res, next) => {
   }
 };
 
-module.exports = verifyToken;
+const requireAdmin = (req, res, next) => {
+  if (req.user.role !== "admin" && req.user.role !== "Admin") {
+    return res.status(403).json({ message: "Admin access required" });
+  }
+  next();
+};
+
+const requireCandidate = (req, res, next) => {
+  if (req.user.role !== "candidate" && req.user.role !== "Candidate") {
+    return res.status(403).json({ message: "Candidate access required" });
+  }
+  next();
+};
+
+const requireHR = (req, res, next) => {
+  if (req.user.role !== "hr") {
+    return res.status(403).json({ message: "HR access required" });
+  }
+  next();
+};
+
+// Support both import styles:
+// old code: const verifyToken = require('../middleware/authMiddleware')
+// new code: const { authenticateToken, requireAdmin, requireHR } = require('../middleware/authMiddleware')
+module.exports = authenticateToken;
+module.exports.authenticateToken = authenticateToken;
+module.exports.requireAdmin = requireAdmin;
+module.exports.requireCandidate = requireCandidate;
+module.exports.requireHR = requireHR;
