@@ -35,7 +35,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/support", supportRoutes);
 app.use("/api/search", searchRoutes);
-app.use("/api/resume", resumeRoutes);
+app.use("/api/resumes", resumeRoutes);
 app.use("/api/jd", jdRoutes);
 
 app.get("/", (req, res) => {

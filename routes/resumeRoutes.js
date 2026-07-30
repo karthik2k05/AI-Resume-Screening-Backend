@@ -14,10 +14,6 @@ const upload = multer({
 });
 
 // Upload Resume
-router.post(
-  "/upload",
-  upload.single("resume"),
-  resumeController.uploadResume
-);
+router.post("/analyze", upload.single("resume"), resumeController.uploadResume);
 
 module.exports = router;

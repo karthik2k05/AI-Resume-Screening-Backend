@@ -18,6 +18,15 @@ exports.uploadResume = async (req, res) => {
       req.file.originalname,
       req.file.buffer
     );
+    const summary = `
+ATS Score: ${analysis.score.overall}
+
+Matched Skills:
+${analysis.matchedSkills.map(s => s.skill).join(", ")}
+
+Missing Skills:
+${analysis.missingSkills.join(", ")}
+`;
 
     // Create uploads folder if not exists
     const uploadDir = path.join(__dirname, "../uploads");
@@ -52,12 +61,13 @@ exports.uploadResume = async (req, res) => {
       RETURNING resume_id
       `,
       [
-        null,
+        req.user.id,
         analysis.candidateName,
         req.file.originalname,
         `uploads/${fileName}`,
         analysis.score.overall,
         analysis.missingSkills.join(", "),
+        summary,
       ]
     );
 
