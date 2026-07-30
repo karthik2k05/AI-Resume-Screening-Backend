@@ -61,12 +61,11 @@ ${analysis.missingSkills.join(", ")}
       RETURNING resume_id
       `,
       [
-        req.user.id,
+        null,
         analysis.candidateName,
         req.file.originalname,
         `uploads/${fileName}`,
         analysis.score.overall,
-        analysis.missingSkills.join(", "),
         summary,
       ]
     );
