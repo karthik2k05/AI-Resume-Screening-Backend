@@ -16,19 +16,12 @@ const createJobPosting = async (req, res) => {
     } = req.body;
 
     // Validation
-    if (
-      !title ||
-      !department ||
-      !description ||
-      !keySkills ||
-      keySkills.length === 0
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Title, Department, Description and Required Skills are required.",
-      });
-    }
+    if (!title || !department || !description) {
+  return res.status(400).json({
+    success: false,
+    message: "Title, Department and Description are required.",
+  });
+}
 
     const result = await pool.query(
       `
@@ -54,7 +47,7 @@ const createJobPosting = async (req, res) => {
         company || "",
         location || "",
         description,
-        keySkills,
+        keySkills || [],
       ]
     );
 
