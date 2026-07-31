@@ -134,7 +134,57 @@ const getJobPostings = async (req, res) => {
   }
 };
 
+//Toggle buttons #status of jobs
+const toggleJobPostingStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if job exists
+    const existingJob = await pool.query(
+      `SELECT id, status
+       FROM job_postings
+       WHERE id = $1`,
+      [id]
+    );
+
+    if (existingJob.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Job posting not found.",
+      });
+    }
+
+    const currentStatus = existingJob.rows[0].status;
+
+    const updatedStatus =
+      currentStatus === "open" ? "closed" : "open";
+
+    const result = await pool.query(
+      `UPDATE job_postings
+       SET status = $1
+       WHERE id = $2
+       RETURNING *`,
+      [updatedStatus, id]
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Job status updated successfully.",
+      job: result.rows[0],
+    });
+
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+  }
+};
+
 module.exports = {
   createJobPosting,
   getJobPostings,
+  toggleJobPostingStatus,
 };

@@ -7,6 +7,7 @@ const verifyToken = require("../middleware/authMiddleware");
 const {
   createJobPosting,
   getJobPostings,
+  toggleJobPostingStatus,
 } = require("../controllers/jobPostingController");
 
 router.post(
@@ -19,6 +20,11 @@ router.get(
   "/",
   verifyToken,
   getJobPostings
+);
+router.patch(
+  "/:id/status",
+  verifyToken,
+  toggleJobPostingStatus
 );
 
 module.exports = router;
