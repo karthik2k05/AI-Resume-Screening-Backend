@@ -8,6 +8,7 @@ const {
   createJobPosting,
   getJobPostings,
   toggleJobPostingStatus,
+  updateJobPosting,
 } = require("../controllers/jobPostingController");
 
 router.post(
@@ -25,6 +26,11 @@ router.patch(
   "/:id/status",
   verifyToken,
   toggleJobPostingStatus
+);
+router.put(
+  "/:id",
+  verifyToken,
+  updateJobPosting
 );
 
 module.exports = router;

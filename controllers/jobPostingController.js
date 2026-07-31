@@ -182,9 +182,85 @@ const toggleJobPostingStatus = async (req, res) => {
     });
   }
 };
+//update JOB POSTING #Editing
+const updateJobPosting = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const {
+      title,
+      department,
+      company,
+      location,
+      description,
+      keySkills,
+    } = req.body;
+
+    // Validation
+    if (!title || !department || !description) {
+      return res.status(400).json({
+        success: false,
+        message: "Title, Department and Description are required.",
+      });
+    }
+
+    // Check if job exists
+    const existingJob = await pool.query(
+      `SELECT id
+       FROM job_postings
+       WHERE id = $1`,
+      [id]
+    );
+
+    if (existingJob.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Job posting not found.",
+      });
+    }
+
+    // Update
+    const result = await pool.query(
+      `UPDATE job_postings
+       SET
+         title = $1,
+         department = $2,
+         company = $3,
+         location = $4,
+         description = $5,
+         required_skills = $6
+       WHERE id = $7
+       RETURNING *`,
+      [
+        title,
+        department,
+        company || "",
+        location || "",
+        description,
+        Array.isArray(keySkills) ? keySkills : [],
+        id,
+      ]
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Job updated successfully.",
+      job: result.rows[0],
+    });
+
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+  }
+};
 
 module.exports = {
   createJobPosting,
   getJobPostings,
   toggleJobPostingStatus,
+  updateJobPosting,
 };
