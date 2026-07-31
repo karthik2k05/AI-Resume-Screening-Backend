@@ -11,6 +11,7 @@ const authRoutes = require("./routes/authRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const supportRoutes = require("./routes/supportRoutes");
 const searchRoutes = require("./routes/searchRoutes");
+const jobPostingRoutes = require("./routes/jobPostingRoutes");
 const app = express();
 
 /* Middleware */
@@ -33,6 +34,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/support", supportRoutes);
 app.use("/api/search", searchRoutes);
+app.use("/api/admin/job-postings", jobPostingRoutes);
 
 app.get("/", (req, res) => {
   res.send("AI Resume Screening Backend Running...");
