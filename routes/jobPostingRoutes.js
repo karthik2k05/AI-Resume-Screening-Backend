@@ -9,6 +9,7 @@ const {
   getJobPostings,
   toggleJobPostingStatus,
   updateJobPosting,
+  deleteJobPosting,
 } = require("../controllers/jobPostingController");
 
 router.post(
@@ -31,6 +32,11 @@ router.put(
   "/:id",
   verifyToken,
   updateJobPosting
+);
+router.delete(
+  "/:id",
+  verifyToken,
+  deleteJobPosting
 );
 
 module.exports = router;

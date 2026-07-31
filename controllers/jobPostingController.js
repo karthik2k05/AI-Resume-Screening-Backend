@@ -257,10 +257,65 @@ const updateJobPosting = async (req, res) => {
     });
   }
 };
+//Delete job post
+const deleteJobPosting = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if job exists
+    const existingJob = await pool.query(
+      `SELECT id FROM job_postings WHERE id = $1`,
+      [id]
+    );
+
+    if (existingJob.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Job posting not found.",
+      });
+    }
+
+    // Check whether candidates have applied
+    const applications = await pool.query(
+      `SELECT application_id
+       FROM applications
+       WHERE job_id = $1`,
+      [id]
+    );
+
+    if (applications.rows.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot delete job. Candidates have already applied.",
+      });
+    }
+
+    // Delete job
+    await pool.query(
+      `DELETE FROM job_postings
+       WHERE id = $1`,
+      [id]
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Job deleted successfully.",
+    });
+
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+  }
+};
 
 module.exports = {
   createJobPosting,
   getJobPostings,
   toggleJobPostingStatus,
   updateJobPosting,
+  deleteJobPosting,
 };
