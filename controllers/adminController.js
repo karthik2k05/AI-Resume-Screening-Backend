@@ -41,6 +41,77 @@ const getDashboardStats = async (req, res) => {
 
   }
 };
+///getAdminOverview
+const getAdminOverview = async (req, res) => {
+  try {
+    const [
+      totalApplicants,
+      activeJobPostings,
+      totalJobPostings,
+      totalApplications,
+      averageATS,
+      applicantTrend,
+    ] = await Promise.all([
+      pool.query(
+        `SELECT COUNT(*) AS count
+         FROM users
+         WHERE role = 'CANDIDATE'`
+      ),
+
+      pool.query(
+        `SELECT COUNT(*) AS count
+         FROM job_postings
+         WHERE LOWER(status) = 'open'`
+      ),
+
+      pool.query(
+        `SELECT COUNT(*) AS count
+         FROM job_postings`
+      ),
+
+      pool.query(
+        `SELECT COUNT(*) AS count
+         FROM applications`
+      ),
+
+      pool.query(
+        `SELECT COALESCE(ROUND(AVG(overall_score),2),0) AS average
+         FROM ats_scores`
+      ),
+
+      pool.query(`
+        SELECT
+          TO_CHAR(DATE_TRUNC('month', applied_at), 'Mon') AS month,
+          COUNT(*)::int AS applicants
+        FROM applications
+        GROUP BY DATE_TRUNC('month', applied_at)
+        ORDER BY DATE_TRUNC('month', applied_at)
+      `),
+    ]);
+
+    res.status(200).json({
+      success: true,
+
+      statistics: {
+        totalApplicants: Number(totalApplicants.rows[0].count),
+        activeJobPostings: Number(activeJobPostings.rows[0].count),
+        totalJobPostings: Number(totalJobPostings.rows[0].count),
+        totalApplications: Number(totalApplications.rows[0].count),
+        averageATSScore: Number(averageATS.rows[0].average),
+      },
+
+      applicantTrend: applicantTrend.rows,
+    });
+
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+  }
+};
 /// View All Jobs
 const getAllJobs = async (req, res) => {
   try {
@@ -191,8 +262,10 @@ const deleteJob = async (req, res) => {
     });
   }
 };
+
 module.exports = {
   getDashboardStats,
+  getAdminOverview,
   getAllJobs,
     deleteJob,
     getCandidates,

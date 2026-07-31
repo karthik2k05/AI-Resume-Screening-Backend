@@ -5,6 +5,7 @@ const verifyToken = require("../middleware/authMiddleware");
 
 const {
   getDashboardStats,
+  getAdminOverview,
   getAllJobs,
   deleteJob,
   getCandidates,
@@ -14,6 +15,11 @@ router.get(
   "/dashboard",
   verifyToken,
   getDashboardStats
+);
+router.get(
+  "/overview",
+  verifyToken,
+  getAdminOverview
 );
 router.get(
   "/jobs",
