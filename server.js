@@ -6,13 +6,16 @@ const express = require("express");
 const cors = require("cors");
 const http = require("http");
 const { Server } = require("socket.io");
+const path = require("path");
 
 const authRoutes = require("./routes/authRoutes");
 const adminRoutes = require("./routes/adminRoutes");
+const candidateRoutes = require("./routes/candidateRoutes");
 const supportRoutes = require("./routes/supportRoutes");
 const searchRoutes = require("./routes/searchRoutes");
 const jobPostingRoutes = require("./routes/jobPostingRoutes");
 const settingsRoutes = require("./routes/settingsRoutes");
+
 const app = express();
 
 /* Middleware */
@@ -29,14 +32,21 @@ app.use(
 
 app.use(express.json());
 
+app.use(
+  "/uploads",
+  express.static(path.join(__dirname, "uploads"))
+);
+
 /* Routes */
 
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/candidate", candidateRoutes);
 app.use("/api/support", supportRoutes);
 app.use("/api/search", searchRoutes);
 app.use("/api/admin/job-postings", jobPostingRoutes);
 app.use("/api/settings", settingsRoutes);
+
 
 app.get("/", (req, res) => {
   res.send("AI Resume Screening Backend Running...");
