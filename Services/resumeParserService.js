@@ -3,7 +3,7 @@ const path = require("path");
 const pdf = require("pdf-parse");
 const mammoth = require("mammoth");
 
-export const SKILL_BANK = [
+const SKILL_BANK = [
   { name: "JavaScript", patterns: [/\bjavascript\b/i, /\bjs\b/i] },
   { name: "TypeScript", patterns: [/\btypescript\b/i, /\bts\b/i] },
   { name: "React", patterns: [/\breact(\.js)?\b/i] },
@@ -151,7 +151,7 @@ function guessCandidateName(rawText, fallback) {
  * used when HR screens a batch of resumes against one open posting
  * instead of just a generic ATS score.
  */
-export function scoreForRole(matchedSkills, requiredSkillNames, atsScore) {
+function scoreForRole(matchedSkills, requiredSkillNames, atsScore) {
   if (!requiredSkillNames || requiredSkillNames.length === 0) {
     return { roleMatch: null, combined: atsScore, matchedRequired: [], missingRequired: [] };
   }
@@ -206,5 +206,5 @@ module.exports = {
     guessCandidateName,
     scoreForRole,
     normalize,
-    SKILL_BANK
+    SKILL_BANK,
 }
