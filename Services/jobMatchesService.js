@@ -1,4 +1,4 @@
-const { SKILL_BANK } = require("./resumeParserService");
+const { SKILL_BANK } = require("../Services/resumeParserService");
 
 export function extractJDKeywords(jobDescription) {
   const text = jobDescription || "";

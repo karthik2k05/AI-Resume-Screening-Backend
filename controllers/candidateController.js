@@ -7,7 +7,7 @@ const {
   getMissingSkills,
   analyzeFormatting,
   computeScore,
-} = require("../services/resumeParserService");
+} = require("../Services/resumeParserService");
 
 const uploadResume = async (req, res) => {
   try {

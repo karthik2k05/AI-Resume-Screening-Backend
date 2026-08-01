@@ -3,11 +3,11 @@ const {
   getMissingSkills,
   analyzeFormatting,
   computeScore,
-} = require("../services/resumeParserService");
+} = require("../Services/resumeParserService");
 
 const {
   scoreResumeAgainstJD,
-} = require("../services/jobMatchService");
+} = require("../Services/jobMatchesService");
 
 const calculateATSScore = (resumeText, jobDescription = "") => {
 
