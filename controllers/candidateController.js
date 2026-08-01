@@ -95,7 +95,7 @@ if (existingResume.rows.length > 0) {
     return res.status(200).json({
   success: true,
   message: "Resume uploaded successfully.",
-  data: {
+  resume: {
     overallScore: score.overall,
     detectedSkills: matchedSkills,
     missingSkills: missingSkills,
@@ -111,6 +111,54 @@ if (existingResume.rows.length > 0) {
     });
   }
 };
+const getLatestResume = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const result = await pool.query(
+      `
+      SELECT *
+      FROM resumes
+      WHERE user_id = $1
+      ORDER BY uploaded_at DESC
+      LIMIT 1
+      `,
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No resume found.",
+      });
+    }
+
+    const resume = result.rows[0];
+
+    return res.status(200).json({
+      success: true,
+      resume: {
+        score: {
+          overall: resume.match_score,
+        },
+        matchedSkills: JSON.parse(resume.detected_skills || "[]"),
+        missingSkills: JSON.parse(resume.missing_skills || "[]"),
+        formatting: analyzeFormatting(
+          await parseResume(resume.file_path)
+        ),
+      },
+    });
+
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+  }
+};
 module.exports = {
   uploadResume,
+  getLatestResume,
 };
