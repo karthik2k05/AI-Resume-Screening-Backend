@@ -113,6 +113,47 @@ return res.status(200).json({
     });
   }
 };
+
+const getMyApplications = async (req, res) => {
+  try {
+
+    const userId = req.user.id;
+
+    const result = await pool.query(
+      `
+      SELECT
+        a.application_id,
+        j.job_title,
+        j.company_name,
+        a.status,
+        a.match_score,
+        a.applied_at
+      FROM applications a
+      INNER JOIN jobs j
+        ON a.job_id = j.job_id
+      WHERE a.user_id = $1
+      ORDER BY a.applied_at DESC
+      `,
+      [userId]
+    );
+
+    return res.status(200).json({
+      success: true,
+      applications: result.rows,
+    });
+
+  } catch (error) {
+
+    console.error(error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+
+  }
+};
+
 const getLatestResume = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -160,7 +201,9 @@ const getLatestResume = async (req, res) => {
     });
   }
 };
+
 module.exports = {
   uploadResume,
+  getMyApplications,
   getLatestResume,
 };

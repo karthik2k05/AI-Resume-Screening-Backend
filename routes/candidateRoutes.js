@@ -6,6 +6,7 @@ const upload = require("../middleware/uploadMiddleware");
 
 const {
   uploadResume,
+  getMyApplications,
   getLatestResume,
 } = require("../controllers/candidateController");
 
@@ -14,6 +15,11 @@ router.post(
   verifyToken,
   upload.single("resume"),
   uploadResume
+);
+router.get(
+  "/applications",
+  verifyToken,
+  getMyApplications
 );
 router.get(
   "/resume",
