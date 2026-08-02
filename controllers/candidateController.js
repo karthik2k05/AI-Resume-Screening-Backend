@@ -47,7 +47,6 @@ if (existingResume.rows.length > 0) {
   await pool.query(
     `
     UPDATE resumes
-UPDATE resumes
 SET
 candidate_name=$1,
 file_name=$2,
