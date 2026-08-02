@@ -50,7 +50,6 @@ const deleteResume = async (req, res) => {
   try {
 
     const { resumeId } = req.params;
-    const { resumeId } = req.params;
 
 // Delete ATS scores first
 await pool.query(
