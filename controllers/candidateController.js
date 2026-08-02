@@ -32,6 +32,8 @@ const uploadResume = async (req, res) => {
     const resumeHealth = Math.round(
   (formatting.passedCount / formatting.totalChecks) * 100
 );
+const matchSummary = `${score.overall}% ATS Match | ${matchedSkills.length} skills matched | ${missingSkills.length} skills missing`;
+
     const existingResume = await pool.query(
   `
   SELECT resume_id
@@ -45,17 +47,19 @@ if (existingResume.rows.length > 0) {
   await pool.query(
     `
     UPDATE resumes
+UPDATE resumes
 SET
 candidate_name=$1,
 file_name=$2,
 file_path=$3,
 resume_text=$4,
 match_score=$5,
-resume_health=$6,
-detected_skills=$7,
-missing_skills=$8,
+detected_skills=$6,
+missing_skills=$7,
+resume_health=$8,
+match_summary=$9,
 uploaded_at=CURRENT_TIMESTAMP
-WHERE user_id=$9
+WHERE user_id=$10
     `,
     [
       req.user.name,
@@ -63,9 +67,10 @@ WHERE user_id=$9
       req.file.path,
       resumeText,
       score.overall,
-      resumeHealth,
       JSON.stringify(matchedSkills),
       JSON.stringify(missingSkills),
+      resumeHealth,
+      matchSummary,
       userId,
     ]
   );
@@ -82,12 +87,13 @@ WHERE user_id=$9
       file_path,
       resume_text,
       match_score,
-      resume_health,
       detected_skills,
-      missing_skills
+      missing_skills,
+      resume_health,
+      match_summary
     )
     VALUES
-    ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+    ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
     `,
     [
       userId,
@@ -95,10 +101,11 @@ WHERE user_id=$9
       req.file.originalname,
       req.file.path,
       resumeText,
-      resumeHealth,
       score.overall,
       JSON.stringify(matchedSkills),
       JSON.stringify(missingSkills),
+      resumeHealth,
+      matchSummary,
     ]
   );
 
