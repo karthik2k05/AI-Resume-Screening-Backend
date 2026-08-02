@@ -50,25 +50,39 @@ const deleteResume = async (req, res) => {
   try {
 
     const { resumeId } = req.params;
-    console.log(req.params);
-console.log("Resume ID:", resumeId);
+    const { resumeId } = req.params;
 
-    await pool.query(
-      `
-      DELETE FROM applications
-      WHERE resume_id=$1
-      `,
-      [resumeId]
-    );
+// Delete ATS scores first
+await pool.query(
+  `
+  DELETE FROM ats_scores
+  WHERE application_id IN (
+    SELECT application_id
+    FROM applications
+    WHERE resume_id = $1
+  )
+  `,
+  [resumeId]
+);
 
-    const deleted = await pool.query(
-      `
-      DELETE FROM resumes
-      WHERE resume_id=$1
-      RETURNING *
-      `,
-      [resumeId]
-    );
+// Delete applications
+await pool.query(
+  `
+  DELETE FROM applications
+  WHERE resume_id = $1
+  `,
+  [resumeId]
+);
+
+// Delete resume
+const deleted = await pool.query(
+  `
+  DELETE FROM resumes
+  WHERE resume_id = $1
+  RETURNING *
+  `,
+  [resumeId]
+);
 
     if (deleted.rows.length === 0) {
       return res.status(404).json({
