@@ -140,14 +140,16 @@ const getMyApplications = async (req, res) => {
       `
       SELECT
         a.application_id,
-        j.job_title,
-        j.company_name,
+        j.title,
+        j.company,
+        j.department,
+        j.location,
         a.status,
         a.match_score,
         a.applied_at
       FROM applications a
-      INNER JOIN jobs j
-        ON a.job_id = j.job_id
+      INNER JOIN job_postings j
+        ON a.job_id = j.id
       WHERE a.user_id = $1
       ORDER BY a.applied_at DESC
       `,
@@ -274,15 +276,19 @@ const applyJob = async (req, res) => {
     }
 
     // Verify job exists
-    const jobResult = await pool.query(
-      `
-      SELECT job_id
-      FROM jobs
-      WHERE job_id = $1
-      `,
-      [job_id]
-    );
-
+const jobResult = await pool.query(
+  `
+  SELECT
+    id,
+    title,
+    company
+  FROM job_postings
+  WHERE
+    id = $1
+    AND LOWER(status)='open'
+  `,
+  [job_id]
+);
     if (jobResult.rows.length === 0) {
       return res.status(404).json({
         success: false,
