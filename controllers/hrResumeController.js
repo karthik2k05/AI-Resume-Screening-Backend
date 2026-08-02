@@ -51,36 +51,42 @@ const deleteResume = async (req, res) => {
 
     const { resumeId } = req.params;
 
-    const result = await pool.query(
+    await pool.query(
       `
-      DELETE FROM resumes
-      WHERE resume_id = $1
-      RETURNING resume_id
+      DELETE FROM applications
+      WHERE resume_id=$1
       `,
       [resumeId]
     );
 
-    if (result.rowCount === 0) {
+    const deleted = await pool.query(
+      `
+      DELETE FROM resumes
+      WHERE resume_id=$1
+      RETURNING *
+      `,
+      [resumeId]
+    );
+
+    if (deleted.rows.length === 0) {
       return res.status(404).json({
         success: false,
-        message: "Resume not found.",
+        message: "Resume not found",
       });
     }
 
-    return res.status(200).json({
+    return res.json({
       success: true,
-      message: "Resume deleted successfully.",
+      message: "Resume deleted successfully",
     });
 
-  } catch (error) {
-
-    console.error(error);
+  } catch (err) {
+    console.error(err);
 
     return res.status(500).json({
       success: false,
       message: "Internal Server Error",
     });
-
   }
 };
 
