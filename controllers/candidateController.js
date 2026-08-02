@@ -367,7 +367,7 @@ const getRecommendedJobs = async (req, res) => {
       `
       SELECT *
       FROM job_postings
-      WHERE status='Active'
+      WHERE LOWER(status)='open'
       ORDER BY posted_date DESC
       `
     );
