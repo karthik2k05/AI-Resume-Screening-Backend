@@ -29,6 +29,9 @@ const uploadResume = async (req, res) => {
         matchedSkills,
         formatting,
     });
+    const resumeHealth = Math.round(
+  (formatting.passedCount / formatting.totalChecks) * 100
+);
     const existingResume = await pool.query(
   `
   SELECT resume_id
@@ -48,10 +51,11 @@ file_name=$2,
 file_path=$3,
 resume_text=$4,
 match_score=$5,
-detected_skills=$6,
-missing_skills=$7,
+resume_health=$6,
+detected_skills=$7,
+missing_skills=$8,
 uploaded_at=CURRENT_TIMESTAMP
-WHERE user_id=$8
+WHERE user_id=$9
     `,
     [
       req.user.name,
@@ -59,6 +63,7 @@ WHERE user_id=$8
       req.file.path,
       resumeText,
       score.overall,
+      resumeHealth,
       JSON.stringify(matchedSkills),
       JSON.stringify(missingSkills),
       userId,
@@ -77,11 +82,12 @@ WHERE user_id=$8
       file_path,
       resume_text,
       match_score,
+      resume_health,
       detected_skills,
       missing_skills
     )
     VALUES
-    ($1,$2,$3,$4,$5,$6,$7,$8)
+    ($1,$2,$3,$4,$5,$6,$7,$8,$9)
     `,
     [
       userId,
@@ -89,6 +95,7 @@ WHERE user_id=$8
       req.file.originalname,
       req.file.path,
       resumeText,
+      resumeHealth,
       score.overall,
       JSON.stringify(matchedSkills),
       JSON.stringify(missingSkills),
