@@ -46,6 +46,45 @@ const getAllResumes = async (req, res) => {
   }
 };
 
+const deleteResume = async (req, res) => {
+  try {
+
+    const { resumeId } = req.params;
+
+    const result = await pool.query(
+      `
+      DELETE FROM resumes
+      WHERE resume_id = $1
+      RETURNING resume_id
+      `,
+      [resumeId]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Resume not found.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Resume deleted successfully.",
+    });
+
+  } catch (error) {
+
+    console.error(error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+
+  }
+};
+
 module.exports = {
     getAllResumes,
+    deleteResume,
 };
