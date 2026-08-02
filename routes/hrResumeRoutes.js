@@ -7,6 +7,7 @@ const verifyToken = require("../middleware/authMiddleware");
 const {
     getAllResumes,
     deleteResume,
+    deleteAllResumes,
 } = require("../controllers/hrResumeController");
 
 router.get(
@@ -18,6 +19,11 @@ router.delete(
     "/resumes/:resumeId",
     verifyToken,
     deleteResume
+);
+router.delete(
+    "/resumes",
+    verifyToken,
+    deleteAllResumes
 );
 
 module.exports = router;

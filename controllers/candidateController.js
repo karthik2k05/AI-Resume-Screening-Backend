@@ -219,40 +219,7 @@ const getLatestResume = async (req, res) => {
     });
   }
 };
-const getJobs = async (req, res) => {
-  try {
 
-    const result = await pool.query(
-      `
-      SELECT
-        job_id,
-        job_title,
-        company_name,
-        description,
-        required_skills,
-        minimum_experience,
-        created_at
-      FROM jobs
-      ORDER BY created_at DESC
-      `
-    );
-
-    return res.status(200).json({
-      success: true,
-      jobs: result.rows,
-    });
-
-  } catch (error) {
-
-    console.error(error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Internal Server Error",
-    });
-
-  }
-};
 const applyJob = async (req, res) => {
   try {
 
@@ -362,10 +329,108 @@ const applyJob = async (req, res) => {
 
   }
 };
+const getRecommendedJobs = async (req, res) => {
+  try {
+
+    const userId = req.user.id;
+
+    // Get candidate's latest resume
+    const resumeResult = await pool.query(
+      `
+      SELECT
+        resume_id,
+        detected_skills,
+        match_score
+      FROM resumes
+      WHERE user_id=$1
+      ORDER BY uploaded_at DESC
+      LIMIT 1
+      `,
+      [userId]
+    );
+
+    if (resumeResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Please upload your resume first.",
+      });
+    }
+
+    const resume = resumeResult.rows[0];
+
+    const detectedSkills = JSON.parse(
+      resume.detected_skills || "[]"
+    ).map(skill => skill.skill.toLowerCase());
+
+    // Get active job postings
+    const jobs = await pool.query(
+      `
+      SELECT *
+      FROM job_postings
+      WHERE status='Active'
+      ORDER BY posted_date DESC
+      `
+    );
+
+    const recommendedJobs = jobs.rows.map(job => {
+
+      const requiredSkills =
+        job.required_skills || [];
+
+      const matchedSkills = requiredSkills.filter(skill =>
+        detectedSkills.includes(skill.toLowerCase())
+      );
+
+      const missingSkills = requiredSkills.filter(skill =>
+        !detectedSkills.includes(skill.toLowerCase())
+      );
+
+      const matchScore =
+        requiredSkills.length === 0
+          ? 0
+          : Math.round(
+              (matchedSkills.length / requiredSkills.length) * 100
+            );
+
+      return {
+        job_id: job.id,
+        title: job.title,
+        company: job.company,
+        department: job.department,
+        location: job.location,
+        description: job.description,
+        posted_date: job.posted_date,
+        matchedSkills,
+        missingSkills,
+        matchScore,
+      };
+
+    });
+
+    recommendedJobs.sort(
+      (a, b) => b.matchScore - a.matchScore
+    );
+
+    return res.json({
+      success: true,
+      jobs: recommendedJobs,
+    });
+
+  } catch (error) {
+
+    console.error(error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+
+  }
+};
 module.exports = {
   uploadResume,
   getMyApplications,
   getLatestResume,
-  getJobs,
   applyJob,
+  getRecommendedJobs,
 };

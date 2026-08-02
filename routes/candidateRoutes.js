@@ -8,8 +8,9 @@ const {
   uploadResume,
   getMyApplications,
   getLatestResume,
-  getJobs,
+  getRecommendedJobs,
   applyJob,
+
 } = require("../controllers/candidateController");
 
 router.post(
@@ -31,7 +32,7 @@ router.get(
 router.get(
   "/jobs",
   verifyToken,
-  getJobs
+  getRecommendedJobs
 );
 router.post(
   "/apply",

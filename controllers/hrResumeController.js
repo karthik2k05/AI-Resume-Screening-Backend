@@ -105,7 +105,43 @@ const deleted = await pool.query(
   }
 };
 
+const deleteAllResumes = async (req, res) => {
+  try {
+
+    // Delete ATS scores first
+    await pool.query(`
+      DELETE FROM ats_scores
+    `);
+
+    // Delete all applications
+    await pool.query(`
+      DELETE FROM applications
+    `);
+
+    // Delete all resumes
+    await pool.query(`
+      DELETE FROM resumes
+    `);
+
+    return res.status(200).json({
+      success: true,
+      message: "All resumes deleted successfully.",
+    });
+
+  } catch (error) {
+
+    console.error(error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+
+  }
+};
+
 module.exports = {
     getAllResumes,
     deleteResume,
+    deleteAllResumes,
 };
