@@ -139,9 +139,58 @@ const deleteAllResumes = async (req, res) => {
 
   }
 };
+const getAllApplications = async (req, res) => {
+  try {
+
+    const result = await pool.query(`
+      SELECT
+        a.application_id,
+        a.status,
+        a.match_score,
+        a.applied_at,
+
+        r.resume_id,
+        r.candidate_name,
+        r.file_name,
+        r.resume_health,
+        r.match_summary,
+
+        jp.id AS job_id,
+        jp.title,
+        jp.company,
+        jp.department,
+        jp.location
+
+      FROM applications a
+
+      INNER JOIN resumes r
+        ON a.resume_id = r.resume_id
+
+      INNER JOIN job_postings jp
+        ON a.job_id = jp.id
+
+      ORDER BY a.applied_at DESC
+    `);
+
+    return res.status(200).json({
+      success: true,
+      applications: result.rows,
+    });
+
+  } catch (error) {
+
+    console.error(error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+  }
+};
 
 module.exports = {
     getAllResumes,
     deleteResume,
     deleteAllResumes,
+    getAllApplications,
 };

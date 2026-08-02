@@ -8,6 +8,7 @@ const {
     getAllResumes,
     deleteResume,
     deleteAllResumes,
+    getAllApplications,
 } = require("../controllers/hrResumeController");
 
 router.get(
@@ -24,6 +25,11 @@ router.delete(
     "/resumes",
     verifyToken,
     deleteAllResumes
+);
+router.get(
+  "/applications",
+  verifyToken,
+  getAllApplications
 );
 
 module.exports = router;
