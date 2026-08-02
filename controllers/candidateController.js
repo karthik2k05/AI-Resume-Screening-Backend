@@ -235,9 +235,119 @@ const getJobs = async (req, res) => {
 
   }
 };
+const applyJob = async (req, res) => {
+  try {
+
+    const userId = req.user.id;
+    const { job_id } = req.body;
+
+    if (!job_id) {
+      return res.status(400).json({
+        success: false,
+        message: "Job ID is required.",
+      });
+    }
+
+    // Check whether the candidate uploaded a resume
+    const resumeResult = await pool.query(
+      `
+      SELECT
+        resume_id,
+        match_score
+      FROM resumes
+      WHERE user_id = $1
+      `,
+      [userId]
+    );
+
+    if (resumeResult.rows.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Please upload your resume before applying.",
+      });
+    }
+
+    const resume = resumeResult.rows[0];
+
+    // Prevent duplicate applications
+    const existingApplication = await pool.query(
+      `
+      SELECT application_id
+      FROM applications
+      WHERE
+        user_id = $1
+        AND job_id = $2
+      `,
+      [userId, job_id]
+    );
+
+    if (existingApplication.rows.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: "You have already applied for this job.",
+      });
+    }
+
+    // Verify job exists
+    const jobResult = await pool.query(
+      `
+      SELECT job_id
+      FROM jobs
+      WHERE job_id = $1
+      `,
+      [job_id]
+    );
+
+    if (jobResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Job not found.",
+      });
+    }
+
+    // Insert application
+    await pool.query(
+      `
+      INSERT INTO applications
+      (
+        user_id,
+        resume_id,
+        job_id,
+        match_score,
+        status
+      )
+      VALUES
+      ($1,$2,$3,$4,$5)
+      `,
+      [
+        userId,
+        resume.resume_id,
+        job_id,
+        resume.match_score,
+        "Applied",
+      ]
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: "Application submitted successfully.",
+    });
+
+  } catch (error) {
+
+    console.error(error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+
+  }
+};
 module.exports = {
   uploadResume,
   getMyApplications,
   getLatestResume,
   getJobs,
+  applyJob,
 };
