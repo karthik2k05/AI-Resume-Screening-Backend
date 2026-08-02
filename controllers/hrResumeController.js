@@ -187,10 +187,64 @@ const getAllApplications = async (req, res) => {
     });
   }
 };
+const updateApplicationStatus = async (
+  req,
+  res,
+  status
+) => {
+  try {
+
+    const { applicationId } = req.params;
+
+    const result = await pool.query(
+      `
+      UPDATE applications
+      SET status=$1
+      WHERE application_id=$2
+      RETURNING *
+      `,
+      [status, applicationId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Application not found.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Application ${status.toLowerCase()} successfully.`,
+    });
+
+  } catch (error) {
+
+    console.error(error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+
+  }
+};
+const shortlistApplication = (req, res) =>
+  updateApplicationStatus(req, res, "Shortlisted");
+
+const rejectApplication = (req, res) =>
+  updateApplicationStatus(req, res, "Rejected");
+
+const interviewApplication = (req, res) =>
+  updateApplicationStatus(req, res, "Interview");
+
 
 module.exports = {
     getAllResumes,
     deleteResume,
     deleteAllResumes,
     getAllApplications,
+    shortlistApplication,
+    rejectApplication,
+    interviewApplication,
 };
