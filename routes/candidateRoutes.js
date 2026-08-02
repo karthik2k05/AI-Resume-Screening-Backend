@@ -8,6 +8,7 @@ const {
   uploadResume,
   getMyApplications,
   getLatestResume,
+  getJobs,
 } = require("../controllers/candidateController");
 
 router.post(
@@ -25,6 +26,11 @@ router.get(
   "/resume",
   verifyToken,
   getLatestResume
+);
+router.get(
+  "/jobs",
+  verifyToken,
+  getJobs
 );
 
 module.exports = router;

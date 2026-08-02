@@ -201,9 +201,43 @@ const getLatestResume = async (req, res) => {
     });
   }
 };
+const getJobs = async (req, res) => {
+  try {
 
+    const result = await pool.query(
+      `
+      SELECT
+        job_id,
+        job_title,
+        company_name,
+        description,
+        required_skills,
+        minimum_experience,
+        created_at
+      FROM jobs
+      ORDER BY created_at DESC
+      `
+    );
+
+    return res.status(200).json({
+      success: true,
+      jobs: result.rows,
+    });
+
+  } catch (error) {
+
+    console.error(error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+
+  }
+};
 module.exports = {
   uploadResume,
   getMyApplications,
   getLatestResume,
+  getJobs,
 };
