@@ -42,20 +42,22 @@ if (existingResume.rows.length > 0) {
   await pool.query(
     `
     UPDATE resumes
-    SET
-      candidate_name = $1,
-      file_name = $2,
-      file_path = $3,
-      match_score = $4,
-      detected_skills = $5,
-      missing_skills = $6,
-      uploaded_at = CURRENT_TIMESTAMP
-    WHERE user_id = $7
+SET
+candidate_name=$1,
+file_name=$2,
+file_path=$3,
+resume_text=$4,
+match_score=$5,
+detected_skills=$6,
+missing_skills=$7,
+uploaded_at=CURRENT_TIMESTAMP
+WHERE user_id=$8
     `,
     [
       req.user.name,
       req.file.originalname,
       req.file.path,
+      resumeText,
       score.overall,
       JSON.stringify(matchedSkills),
       JSON.stringify(missingSkills),
@@ -73,18 +75,20 @@ if (existingResume.rows.length > 0) {
       candidate_name,
       file_name,
       file_path,
+      resume_text,
       match_score,
       detected_skills,
       missing_skills
     )
     VALUES
-    ($1,$2,$3,$4,$5,$6,$7)
+    ($1,$2,$3,$4,$5,$6,$7,$8)
     `,
     [
       userId,
       req.user.name,
       req.file.originalname,
       req.file.path,
+      resumeText,
       score.overall,
       JSON.stringify(matchedSkills),
       JSON.stringify(missingSkills),
@@ -189,6 +193,7 @@ const getLatestResume = async (req, res) => {
         formatting: analyzeFormatting(
           await parseResume(resume.file_path)
         ),
+        text: resume.resume_text,
       },
     });
 
