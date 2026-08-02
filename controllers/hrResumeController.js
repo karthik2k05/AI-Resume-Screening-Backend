@@ -50,6 +50,8 @@ const deleteResume = async (req, res) => {
   try {
 
     const { resumeId } = req.params;
+    console.log(req.params);
+console.log("Resume ID:", resumeId);
 
     await pool.query(
       `
