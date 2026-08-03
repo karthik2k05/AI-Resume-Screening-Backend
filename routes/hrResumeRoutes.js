@@ -13,6 +13,7 @@ const {
     rejectApplication,
     interviewApplication,
     getApplicationDetails,
+    getDashboard,
 } = require("../controllers/hrResumeController");
 
 router.get(
@@ -54,5 +55,10 @@ router.get(
   "/applications/:applicationId",
   verifyToken,
   getApplicationDetails
+);
+router.get(
+    "/dashboard",
+    verifyToken,
+    getDashboard
 );
 module.exports = router;

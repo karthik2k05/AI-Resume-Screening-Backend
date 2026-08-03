@@ -317,6 +317,97 @@ const getApplicationDetails = async (req, res) => {
   }
 };
 
+const getDashboard = async (req, res) => {
+  try {
+
+    const totalApplicants = await pool.query(`
+      SELECT COUNT(*)::int AS count
+      FROM applications
+    `);
+
+    const activeJobPostings = await pool.query(`
+      SELECT COUNT(*)::int AS count
+      FROM job_postings
+      WHERE LOWER(status)='open'
+    `);
+
+    const interviewsThisWeek = await pool.query(`
+      SELECT COUNT(*)::int AS count
+      FROM applications
+      WHERE status='Interview'
+      AND applied_at >= NOW() - INTERVAL '7 days'
+    `);
+
+    const averageATSScore = await pool.query(`
+      SELECT
+      ROUND(AVG(match_score),2) AS average
+      FROM applications
+    `);
+
+    const applicantTrend = await pool.query(`
+      SELECT
+      TO_CHAR(applied_at,'Mon') AS month,
+      COUNT(*)::int AS applicants
+      FROM applications
+      GROUP BY
+      TO_CHAR(applied_at,'Mon'),
+      DATE_TRUNC('month',applied_at)
+      ORDER BY
+      DATE_TRUNC('month',applied_at)
+    `);
+
+    const hiringFunnel = await pool.query(`
+      SELECT
+      status,
+      COUNT(*)::int AS count
+      FROM applications
+      GROUP BY status
+    `);
+
+    return res.json({
+      success: true,
+
+      statistics: {
+
+        totalApplicants:
+          totalApplicants.rows[0].count,
+
+        activeJobPostings:
+          activeJobPostings.rows[0].count,
+
+        interviewsThisWeek:
+          interviewsThisWeek.rows[0].count,
+
+        averageATSScore:
+          Number(
+            averageATSScore.rows[0].average || 0
+          ),
+
+      },
+
+      applicantTrend:
+        applicantTrend.rows,
+
+      hiringFunnel:
+        hiringFunnel.rows,
+
+    });
+
+  } catch (error) {
+
+    console.error(error);
+
+    return res.status(500).json({
+
+      success:false,
+
+      message:"Internal Server Error",
+
+    });
+
+  }
+};
+
 module.exports = {
     getAllResumes,
     deleteResume,
@@ -326,4 +417,5 @@ module.exports = {
     rejectApplication,
     interviewApplication,
     getApplicationDetails,
+    getDashboard,
 };
