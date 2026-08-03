@@ -14,6 +14,7 @@ const {
     interviewApplication,
     getApplicationDetails,
     getDashboard,
+    getAnalytics,
 } = require("../controllers/hrResumeController");
 
 router.get(
@@ -61,6 +62,10 @@ router.get(
     verifyToken,
     getDashboard
 );
-// hrResumeRoutes.js
+router.get(
+  "/analytics",
+  verifyToken,
+  getAnalytics
+);
 
 module.exports = router;

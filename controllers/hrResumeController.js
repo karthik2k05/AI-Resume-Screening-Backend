@@ -407,6 +407,145 @@ const getDashboard = async (req, res) => {
 
   }
 };
+const getAnalytics = async (req, res) => {
+  try {
+
+    const [
+      totalApplicants,
+      activeJobs,
+      interviews,
+      averageATS,
+      monthlyApplicants,
+      hiringFunnel,
+      departmentApplications,
+      topJobs,
+    ] = await Promise.all([
+
+      pool.query(`
+        SELECT COUNT(*)::int AS count
+        FROM applications
+      `),
+
+      pool.query(`
+        SELECT COUNT(*)::int AS count
+        FROM job_postings
+        WHERE LOWER(status)='open'
+      `),
+
+      pool.query(`
+        SELECT COUNT(*)::int AS count
+        FROM applications
+        WHERE status='Interview'
+      `),
+
+      pool.query(`
+        SELECT
+        ROUND(AVG(match_score),2) AS average
+        FROM applications
+      `),
+
+      pool.query(`
+        SELECT
+        TO_CHAR(applied_at,'Mon') AS month,
+        COUNT(*)::int AS applicants
+        FROM applications
+        GROUP BY
+        DATE_TRUNC('month',applied_at),
+        TO_CHAR(applied_at,'Mon')
+        ORDER BY
+        DATE_TRUNC('month',applied_at)
+      `),
+
+      pool.query(`
+        SELECT
+        status,
+        COUNT(*)::int AS count
+        FROM applications
+        GROUP BY status
+      `),
+
+      pool.query(`
+        SELECT
+        jp.department,
+        COUNT(a.application_id)::int AS applicants
+
+        FROM job_postings jp
+
+        LEFT JOIN applications a
+        ON jp.id=a.job_id
+
+        GROUP BY jp.department
+
+        ORDER BY applicants DESC
+      `),
+
+      pool.query(`
+        SELECT
+        jp.title,
+        COUNT(a.application_id)::int AS applicants
+
+        FROM job_postings jp
+
+        LEFT JOIN applications a
+        ON jp.id=a.job_id
+
+        GROUP BY jp.title
+
+        ORDER BY applicants DESC
+      `)
+
+    ]);
+
+    res.json({
+
+      success:true,
+
+      statistics:{
+
+        totalApplicants:
+        totalApplicants.rows[0].count,
+
+        activeJobs:
+        activeJobs.rows[0].count,
+
+        interviews:
+        interviews.rows[0].count,
+
+        averageATS:
+        Number(
+          averageATS.rows[0].average || 0
+        )
+
+      },
+
+      monthlyApplicants:
+      monthlyApplicants.rows,
+
+      hiringFunnel:
+      hiringFunnel.rows,
+
+      departmentApplications:
+      departmentApplications.rows,
+
+      topJobs:
+      topJobs.rows
+
+    });
+
+  } catch (error) {
+
+    console.error(error);
+
+    res.status(500).json({
+
+      success:false,
+
+      message:"Internal Server Error"
+
+    });
+
+  }
+};
 
 module.exports = {
     getAllResumes,
@@ -418,4 +557,5 @@ module.exports = {
     interviewApplication,
     getApplicationDetails,
     getDashboard,
+    getAnalytics,
 };
