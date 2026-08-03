@@ -207,7 +207,7 @@ const getLatestResume = async (req, res) => {
         matchedSkills: JSON.parse(resume.detected_skills || "[]"),
         missingSkills: JSON.parse(resume.missing_skills || "[]"),
         formatting: analyzeFormatting(
-          await parseResume(resume.file_path)
+          resume.resume_text || ""
         ),
         text: resume.resume_text,
       },
