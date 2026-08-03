@@ -9,6 +9,7 @@ const {
   getAllJobs,
   deleteJob,
   getCandidates,
+  getAnalytics,
 } = require("../controllers/adminController");
 
 router.get(
@@ -35,6 +36,11 @@ router.delete(
   "/jobs/:id",
   verifyToken,
   deleteJob
+);
+router.get(
+    "/analytics",
+    verifyToken,
+    getAnalytics
 );
 
 module.exports = router;

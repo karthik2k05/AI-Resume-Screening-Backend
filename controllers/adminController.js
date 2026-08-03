@@ -276,10 +276,152 @@ const deleteJob = async (req, res) => {
   }
 };
 
+// =========================
+// Admin Analytics
+// =========================
+const getAnalytics = async (req, res) => {
+  try {
+
+    const [
+      statistics,
+      monthlyApplications,
+      hiringFunnel,
+      applicationsPerJob,
+      atsDistribution,
+    ] = await Promise.all([
+
+      // KPI
+      pool.query(`
+        SELECT
+          (SELECT COUNT(*) FROM users WHERE role='CANDIDATE') AS total_candidates,
+
+          (SELECT COUNT(*) FROM applications) AS total_applications,
+
+          (SELECT COUNT(*) FROM job_postings
+            WHERE LOWER(status)='open') AS active_jobs,
+
+          (SELECT COALESCE(ROUND(AVG(match_score),2),0)
+            FROM resumes) AS average_ats
+      `),
+
+      // Monthly Applications
+      pool.query(`
+        SELECT
+          TO_CHAR(DATE_TRUNC('month', applied_at),'Mon') AS month,
+          COUNT(*)::int AS applications
+        FROM applications
+        GROUP BY
+          DATE_TRUNC('month', applied_at),
+          TO_CHAR(DATE_TRUNC('month', applied_at),'Mon')
+        ORDER BY DATE_TRUNC('month', applied_at)
+      `),
+
+      // Hiring Funnel
+      pool.query(`
+        SELECT
+          status,
+          COUNT(*)::int AS count
+        FROM applications
+        GROUP BY status
+      `),
+
+      // Applications Per Job
+      pool.query(`
+        SELECT
+          jp.title,
+          COUNT(a.application_id)::int AS applicants
+        FROM job_postings jp
+        LEFT JOIN applications a
+          ON jp.id=a.job_id
+        GROUP BY
+          jp.id,
+          jp.title
+        ORDER BY applicants DESC
+      `),
+
+      // ATS Distribution
+      pool.query(`
+        SELECT
+
+          CASE
+
+            WHEN match_score>=90 THEN '90-100'
+
+            WHEN match_score>=80 THEN '80-89'
+
+            WHEN match_score>=70 THEN '70-79'
+
+            WHEN match_score>=60 THEN '60-69'
+
+            ELSE 'Below 60'
+
+          END AS range,
+
+          COUNT(*)::int AS count
+
+        FROM resumes
+
+        GROUP BY range
+
+        ORDER BY range DESC
+      `)
+
+    ]);
+
+    res.status(200).json({
+
+      success: true,
+
+      statistics: {
+
+        totalCandidates:
+          Number(statistics.rows[0].total_candidates),
+
+        totalApplications:
+          Number(statistics.rows[0].total_applications),
+
+        activeJobs:
+          Number(statistics.rows[0].active_jobs),
+
+        averageATS:
+          Number(statistics.rows[0].average_ats)
+
+      },
+
+      monthlyApplications:
+        monthlyApplications.rows,
+
+      hiringFunnel:
+        hiringFunnel.rows,
+
+      applicationsPerJob:
+        applicationsPerJob.rows,
+
+      atsDistribution:
+        atsDistribution.rows
+
+    });
+
+  } catch (error) {
+
+    console.error(error);
+
+    res.status(500).json({
+
+      success: false,
+
+      message: "Internal Server Error"
+
+    });
+
+  }
+};
+
 module.exports = {
   getDashboardStats,
   getAdminOverview,
   getAllJobs,
-    deleteJob,
-    getCandidates,
+  deleteJob,
+  getCandidates,
+  getAnalytics,
 };

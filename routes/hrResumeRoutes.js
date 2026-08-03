@@ -61,4 +61,7 @@ router.get(
     verifyToken,
     getDashboard
 );
+// hrResumeRoutes.js
+router.get("/analytics", verifyToken, getAnalytics);
+
 module.exports = router;
