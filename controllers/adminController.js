@@ -164,34 +164,47 @@ const getCandidates = async (req, res) => {
 
     // Fetch current page
     const result = await pool.query(
-      `
-      SELECT
+`
+SELECT
     u.user_id,
     u.name,
     u.email,
-    j.job_title AS role,
-    COALESCE(a.status, 'Applied') AS status,
-    COALESCE(s.overall_score, 0) AS score
+
+    jp.title AS role,
+
+    COALESCE(a.status,'Registered') AS status,
+
+    COALESCE(r.match_score,0) AS score
 
 FROM users u
 
-LEFT JOIN applications a
-ON u.user_id = a.user_id
+LEFT JOIN LATERAL (
+    SELECT *
+    FROM resumes
+    WHERE user_id = u.user_id
+    ORDER BY uploaded_at DESC
+    LIMIT 1
+) r ON true
 
-LEFT JOIN ats_scores s
-ON a.application_id = s.application_id
+LEFT JOIN LATERAL (
+    SELECT *
+    FROM applications
+    WHERE user_id = u.user_id
+    ORDER BY applied_at DESC
+    LIMIT 1
+) a ON true
 
-LEFT JOIN jobs j
-ON a.job_id = j.job_id
+LEFT JOIN job_postings jp
+ON a.job_id = jp.id
 
-WHERE u.role = 'CANDIDATE'
+WHERE u.role='CANDIDATE'
 
 ORDER BY u.created_at DESC
 
-LIMIT $1 OFFSET $2;
-      `,
-      [limit, offset]
-    );
+LIMIT $1 OFFSET $2
+`,
+[limit,offset]
+);
 
     res.status(200).json({
       success: true,
