@@ -140,6 +140,7 @@ const getMyApplications = async (req, res) => {
       `
       SELECT
         a.application_id,
+        a.job_id,
         j.title,
         j.company,
         j.department,
