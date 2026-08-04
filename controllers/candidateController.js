@@ -434,10 +434,51 @@ const getRecommendedJobs = async (req, res) => {
 
   }
 };
+const getProfile = async (req, res) => {
+  try {
+
+    const userId = req.user.id;
+
+    const result = await pool.query(
+      `
+      SELECT
+        user_id,
+        name,
+        email
+      FROM users
+      WHERE user_id = $1
+      `,
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      user: result.rows[0],
+    });
+
+  } catch (error) {
+
+    console.error(error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+
+  }
+};
 module.exports = {
   uploadResume,
   getMyApplications,
   getLatestResume,
   applyJob,
   getRecommendedJobs,
+  getProfile,
 };

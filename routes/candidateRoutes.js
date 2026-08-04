@@ -10,7 +10,7 @@ const {
   getLatestResume,
   getRecommendedJobs,
   applyJob,
-
+  getProfile,
 } = require("../controllers/candidateController");
 
 router.post(
@@ -38,6 +38,11 @@ router.post(
   "/apply",
   verifyToken,
   applyJob
+);
+router.get(
+    "/profile",
+    verifyToken,
+    getProfile
 );
 
 module.exports = router;
