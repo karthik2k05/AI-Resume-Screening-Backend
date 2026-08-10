@@ -7,7 +7,7 @@ require("../firebase/firebaseAdmin");
 // ================= REGISTER =================
 const register = async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, password, role, firebase_uid } = req.body;
 
     if (!name || !email || !password || !role) {
       return res.status(400).json({
@@ -55,10 +55,10 @@ const register = async (req, res) => {
 
     if (table === "users") {
       await pool.query(
-        `INSERT INTO users(name,email,password_hash)
-         VALUES($1,$2,$3)`,
-        [name, email, hashedPassword]
-      );
+  `INSERT INTO users(name,email,password_hash,firebase_uid)
+   VALUES($1,$2,$3,$4)`,
+  [name, email, hashedPassword, firebase_uid]
+);
     } else {
       await pool.query(
         `INSERT INTO ${table}(name,email,password_hash)
@@ -199,6 +199,98 @@ const login = async (req, res) => {
   }
 };
 
+// ================= FIREBASE EMAIL/PASSWORD LOGIN =================
+const firebaseLogin = async (req, res) => {
+  try {
+    const { idToken } = req.body;
+
+    if (!idToken) {
+      return res.status(400).json({
+        success: false,
+        message: "Firebase ID Token is required",
+      });
+    }
+
+    // Verify Firebase ID Token
+    const decodedToken = await getAuth().verifyIdToken(idToken);
+
+    const { uid, email } = decodedToken;
+
+    // Find user in PostgreSQL using Firebase UID
+    let result;
+
+result = await pool.query(
+  "SELECT *, 'candidate' as role FROM users WHERE firebase_uid = $1",
+  [uid]
+);
+
+if (result.rows.length === 0) {
+  result = await pool.query(
+    "SELECT *, 'hr' as role FROM hrs WHERE firebase_uid = $1",
+    [uid]
+  );
+}
+
+if (result.rows.length === 0) {
+  result = await pool.query(
+    "SELECT *, 'admin' as role FROM admins WHERE firebase_uid = $1",
+    [uid]
+  );
+}
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found in database",
+      });
+    }
+
+    const user = result.rows[0];
+
+    // Save successful login
+    if (user.role === "candidate") {
+  await pool.query(
+    "INSERT INTO login_history (user_id, status) VALUES ($1, $2)",
+    [user.user_id, "SUCCESS"]
+  );
+}
+
+    // Generate your existing application JWT
+    const token = jwt.sign(
+  {
+    id: user.user_id || user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+  },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: "1d",
+      }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Login Successful",
+      token,
+      user: {
+        id: user.user_id || user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+    });
+
+  } catch (error) {
+    console.error("Firebase Login Error:", error);
+
+    return res.status(401).json({
+      success: false,
+      message: "Firebase authentication failed",
+    });
+  }
+};
+
 // ================= GOOGLE LOGIN =================
 const googleLogin = async (req, res) => {
   try {
@@ -284,8 +376,23 @@ const googleLogin = async (req, res) => {
   }
 };
 
+//forgot pwd
+const forgotPassword = async (req, res) => {
+  try {
+    res.json({
+      message: "Forgot password route working"
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: error.message
+    });
+  }
+};
+
 module.exports = {
   register,
   login,
+  firebaseLogin,
   googleLogin,
+  forgotPassword,
 };
