@@ -7,7 +7,16 @@ require("../firebase/firebaseAdmin");
 // ================= REGISTER =================
 const register = async (req, res) => {
   try {
-    const { name, email, password, role, firebase_uid } = req.body;
+    
+const { name, email, password, role, firebase_uid } = req.body;
+
+    // Admin registration is not allowed
+    if (role?.toLowerCase() === "admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Admin registration is not allowed.",
+      });
+    }
 
     if (!name || !email || !password || !role) {
       return res.status(400).json({
@@ -94,6 +103,7 @@ const login = async (req, res) => {
       });
     }
 
+    // Admin login is allowed, but admin registration is not
     let table = "";
     let idColumn = "";
 
@@ -164,12 +174,54 @@ const login = async (req, res) => {
       );
     }
 
+    // ================= CREATE FREE SUBSCRIPTION =================
+    // Only HR and Candidate users need subscriptions.
+    if (table === "users" || table === "hrs") {
+      const subscriptionUserType =
+        table === "users" ? "candidate" : "hr";
+
+      const subscriptionUserId =
+        table === "users" ? user.user_id : user.id;
+
+      const existingSubscription = await pool.query(
+        `
+        SELECT subscription_id
+        FROM subscriptions
+        WHERE user_type = $1
+        AND user_id = $2
+        `,
+        [subscriptionUserType, subscriptionUserId]
+      );
+
+      if (existingSubscription.rows.length === 0) {
+        await pool.query(
+          `
+          INSERT INTO subscriptions
+          (
+            user_type,
+            user_id,
+            plan,
+            uploads_used,
+            uploads_limit
+          )
+          VALUES
+          ($1, $2, 'FREE', 0, 10)
+          `,
+          [
+            subscriptionUserType,
+            subscriptionUserId,
+          ]
+        );
+      }
+    }
+
+    // Generate JWT
     const token = jwt.sign(
       {
         id: user[idColumn],
         name: user.name,
         email: user.email,
-        role,
+        role: role.toLowerCase(),
       },
       process.env.JWT_SECRET,
       {
@@ -185,7 +237,7 @@ const login = async (req, res) => {
         id: user[idColumn],
         name: user.name,
         email: user.email,
-        role,
+        role: role.toLowerCase(),
       },
     });
 
@@ -346,6 +398,7 @@ const googleLogin = async (req, res) => {
         id: user.user_id,
         name: user.name,
         email: user.email,
+         role:"candidate",
       },
       process.env.JWT_SECRET,
       {
@@ -361,6 +414,7 @@ const googleLogin = async (req, res) => {
     id: user.user_id,
     name: user.name,
     email: user.email,
+    role: "candidate",
   },
     });
 

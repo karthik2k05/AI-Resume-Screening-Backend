@@ -5,7 +5,7 @@ const pool = require("../config/db");
 ================================ */
 
 const createJobPosting = async (req, res) => {
-  try {
+  try {  console.log("Logged in user:", req.user);
     const {
       title,
       department,
@@ -14,6 +14,7 @@ const createJobPosting = async (req, res) => {
       company,
       location,
     } = req.body;
+    const hrId = req.user.id;
 
     // Validation
     if (!title || !department || !description) {
@@ -33,11 +34,12 @@ const createJobPosting = async (req, res) => {
         location,
         description,
         required_skills,
-        status
+        status,
+        hr_id
       )
       VALUES
       (
-        $1,$2,$3,$4,$5,$6,'open'
+        $1,$2,$3,$4,$5,$6,'open',$7
       )
       RETURNING *;
       `,
@@ -48,6 +50,7 @@ const createJobPosting = async (req, res) => {
         location || "",
         description,
         keySkills || [],
+        hrId
       ]
     );
 
@@ -74,38 +77,66 @@ const createJobPosting = async (req, res) => {
 const getJobPostings = async (req, res) => {
   try {
 
+    console.log("Logged in user:", req.user);
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 10;
     const search = req.query.search || "";
 
     const offset = (page - 1) * limit;
+    const role = req.user.role;
+    const userId = req.user.id;
 
-    const totalResult = await pool.query(
-      `
+   const totalResult = await pool.query(
+  role === "hr"
+    ? `
+      SELECT COUNT(*)
+      FROM job_postings
+      WHERE hr_id = $1
+      AND (
+        LOWER(title) LIKE LOWER($2)
+        OR LOWER(department) LIKE LOWER($2)
+      )
+    `
+    : `
       SELECT COUNT(*)
       FROM job_postings
       WHERE
-      LOWER(title) LIKE LOWER($1)
-      OR LOWER(department) LIKE LOWER($1)
-      `,
-      [`%${search}%`]
-    );
+        LOWER(title) LIKE LOWER($1)
+        OR LOWER(department) LIKE LOWER($1)
+    `,
+  role === "hr"
+    ? [userId, `%${search}%`]
+    : [`%${search}%`]
+);
 
-    const jobs = await pool.query(
-      `
+   const jobs = await pool.query(
+  role === "hr"
+    ? `
+      SELECT *
+      FROM job_postings
+      WHERE hr_id = $1
+      AND (
+        LOWER(title) LIKE LOWER($2)
+        OR LOWER(department) LIKE LOWER($2)
+      )
+      ORDER BY posted_date DESC
+      LIMIT $3
+      OFFSET $4
+    `
+    : `
       SELECT *
       FROM job_postings
       WHERE
-      LOWER(title) LIKE LOWER($1)
-      OR LOWER(department) LIKE LOWER($1)
-
+        LOWER(title) LIKE LOWER($1)
+        OR LOWER(department) LIKE LOWER($1)
       ORDER BY posted_date DESC
-
       LIMIT $2
       OFFSET $3
-      `,
-      [`%${search}%`, limit, offset]
-    );
+    `,
+  role === "hr"
+    ? [userId, `%${search}%`, limit, offset]
+    : [`%${search}%`, limit, offset]
+);
 
     res.status(200).json({
       success: true,
