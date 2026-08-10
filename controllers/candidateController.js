@@ -18,6 +18,36 @@ const uploadResume = async (req, res) => {
   });
 }
     const userId = req.user.id;
+    // ================= SUBSCRIPTION CHECK =================
+
+const userType = req.user.role.toLowerCase();
+
+const subscription = await pool.query(
+  `
+  SELECT *
+  FROM subscriptions
+  WHERE user_type = $1
+  AND user_id = $2
+  `,
+  [userType, userId]
+);
+
+if (subscription.rows.length === 0) {
+  return res.status(404).json({
+    success: false,
+    message: "Subscription not found.",
+  });
+}
+
+const currentPlan = subscription.rows[0];
+if (currentPlan.plan === "FREE") {
+  if (currentPlan.uploads_used >= currentPlan.uploads_limit) {
+    return res.status(403).json({
+      success: false,
+      message: "Your free trial has ended. Please upgrade your plan.",
+    });
+  }
+}
     const resumeText = await parseResume(req.file.path);
     const matchedSkills = extractSkills(resumeText);
 
@@ -109,6 +139,15 @@ WHERE user_id=$10
   );
 
 }
+await pool.query(
+  `
+  UPDATE subscriptions
+  SET uploads_used = uploads_used + 1
+  WHERE user_type = $1
+  AND user_id = $2
+  `,
+  [userType, userId]
+);
 return res.status(200).json({
   success: true,
   message: "Resume uploaded successfully.",
@@ -474,6 +513,40 @@ const getProfile = async (req, res) => {
 
   }
 };
+const getApplicantsByJob = async (req, res) => {
+  try {
+    const { jobId } = req.params;
+
+    const result = await pool.query(
+      `
+      SELECT
+        u.user_id,
+        u.name,
+        a.applied_at
+      FROM applications a
+      JOIN users u
+        ON a.user_id = u.user_id
+      WHERE a.job_id = $1
+      ORDER BY a.applied_at DESC
+      `,
+      [jobId]
+    );
+
+    return res.status(200).json({
+      success: true,
+      applicants: result.rows,
+    });
+
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+  }
+};
+
 module.exports = {
   uploadResume,
   getMyApplications,
@@ -481,4 +554,5 @@ module.exports = {
   applyJob,
   getRecommendedJobs,
   getProfile,
+  getApplicantsByJob,
 };
