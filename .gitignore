@@ -5,5 +5,5 @@ dist
 dist-ssr
 *.local
 
-
+uploads/
 .env

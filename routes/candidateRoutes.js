@@ -11,6 +11,7 @@ const {
   getRecommendedJobs,
   applyJob,
   getProfile,
+  getApplicantsByJob,
 } = require("../controllers/candidateController");
 
 router.post(
@@ -44,5 +45,11 @@ router.get(
     verifyToken,
     getProfile
 );
+router.get(
+  "/jobs/:jobId/applicants",
+  verifyToken,
+  getApplicantsByJob
+);
+
 
 module.exports = router;
