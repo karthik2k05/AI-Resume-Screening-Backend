@@ -1,7 +1,6 @@
 const { initializeApp, cert } = require("firebase-admin/app");
 
 let serviceAccount;
-
 if (process.env.FIREBASE_PRIVATE_KEY) {
   // Production (Render)
   serviceAccount = {

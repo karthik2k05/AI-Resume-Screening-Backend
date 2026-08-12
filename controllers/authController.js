@@ -4,17 +4,13 @@ const jwt = require("jsonwebtoken");
 const { getAuth } = require("firebase-admin/auth");
 require("../firebase/firebaseAdmin");
 
+
 // ================= REGISTER =================
 const register = async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
-    // Admin registration is not allowed
-if (role?.toLowerCase() === "admin") {
-  return res.status(403).json({
-    success: false,
-    message: "Admin registration is not allowed.",
-  });
-}
+    const { name, email, password, role, firebase_uid } = req.body;
+
+    // Basic validation
     if (!name || !email || !password || !role) {
       return res.status(400).json({
         success: false,
@@ -22,64 +18,92 @@ if (role?.toLowerCase() === "admin") {
       });
     }
 
-    let table = "";
+    const normalizedEmail = email.trim().toLowerCase();
+    const requestedRole = role.trim().toLowerCase();
 
-    switch (role.toLowerCase()) {
-      case "admin":
-        table = "admins";
-        break;
-
-      case "hr":
-        table = "hrs";
-        break;
-
-      case "candidate":
-        table = "users";
-        break;
-
-      default:
-        return res.status(400).json({
-          success: false,
-          message: "Invalid Role",
-        });
-    }
-
-    // Check existing email
-    const existing = await pool.query(
-      `SELECT * FROM ${table} WHERE email=$1`,
-      [email]
-    );
-
-    if (existing.rows.length > 0) {
-      return res.status(409).json({
+    // Admin registration is not allowed
+    if (requestedRole === "admin") {
+      return res.status(403).json({
         success: false,
-        message: "Email already exists",
+        message: "Admin registration is not allowed.",
       });
     }
 
+    // Validate role
+    if (!["candidate", "hr"].includes(requestedRole)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid Role",
+      });
+    }
+
+    // =====================================================
+    // ROLE-BASED EMAIL CHECK
+    // One email can belong to only ONE role.
+    // =====================================================
+
+    const existingCandidate = await pool.query(
+      `SELECT user_id
+       FROM users
+       WHERE LOWER(email) = $1
+       LIMIT 1`,
+      [normalizedEmail]
+    );
+
+    if (existingCandidate.rows.length > 0) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "This email is already registered as Candidate. You cannot register it again.",
+      });
+    }
+
+    const existingHR = await pool.query(
+      `SELECT id
+       FROM hrs
+       WHERE LOWER(email) = $1
+       LIMIT 1`,
+      [normalizedEmail]
+    );
+
+    if (existingHR.rows.length > 0) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "This email is already registered as HR. You cannot register it again.",
+      });
+    }
+
+    // =====================================================
+    // CREATE USER
+    // =====================================================
+
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    if (table === "users") {
-      await pool.query(
-        `INSERT INTO users(name,email,password_hash)
-         VALUES($1,$2,$3)`,
-        [name, email, hashedPassword]
-      );
-    } else {
-      await pool.query(
-        `INSERT INTO ${table}(name,email,password_hash)
-         VALUES($1,$2,$3)`,
-        [name, email, hashedPassword]
-      );
-    }
+    if (requestedRole === "candidate") {
+  await pool.query(
+    `INSERT INTO users (name, email, password_hash, firebase_uid)
+     VALUES ($1, $2, $3, $4)`,
+    [name.trim(), normalizedEmail, hashedPassword, firebase_uid]
+  );
+}
+
+    if (requestedRole === "hr") {
+  await pool.query(
+    `INSERT INTO hrs (name, email, password_hash, firebase_uid)
+     VALUES ($1, $2, $3, $4)`,
+    [name.trim(), normalizedEmail, hashedPassword, firebase_uid]
+  );
+}
 
     return res.status(201).json({
       success: true,
-      message: "Registration Successful",
+      message: `${requestedRole} registration successful`,
+      role: requestedRole,
     });
 
-  } catch (err) {
-    console.error(err);
+  } catch (error) {
+    console.error("REGISTER ERROR:", error);
 
     return res.status(500).json({
       success: false,
@@ -93,14 +117,45 @@ const login = async (req, res) => {
   try {
     const { email, password, role } = req.body;
 
-    if (!email || !password || !role) {
-      return res.status(400).json({
-        success: false,
-        message: "Email, Password and Role are required",
-      });
-    }
+// =====================================================
+// ROLE-BASED LOGIN CHECK
+// An existing email can login only with its registered role.
+// =====================================================
 
-    // Admin login is allowed, but admin registration is not
+const requestedRole = role.toLowerCase();
+
+const candidateUser = await pool.query(
+  "SELECT user_id FROM users WHERE email = $1",
+  [email]
+);
+
+const hrUser = await pool.query(
+  "SELECT id FROM hrs WHERE email = $1",
+  [email]
+);
+
+const adminUser = await pool.query(
+  "SELECT id FROM admins WHERE email = $1",
+  [email]
+);
+
+let registeredRole = null;
+
+if (candidateUser.rows.length > 0) {
+  registeredRole = "candidate";
+} else if (hrUser.rows.length > 0) {
+  registeredRole = "hr";
+} else if (adminUser.rows.length > 0) {
+  registeredRole = "admin";
+}
+
+if (registeredRole && registeredRole !== requestedRole) {
+  return res.status(403).json({
+    success: false,
+    message: `This email is already registered as ${registeredRole}. You cannot login as ${requestedRole}.`,
+  });
+}
+// Admin login is allowed, but admin registration is not
     let table = "";
     let idColumn = "";
 
@@ -250,7 +305,7 @@ const login = async (req, res) => {
 // ================= FIREBASE EMAIL/PASSWORD LOGIN =================
 const firebaseLogin = async (req, res) => {
   try {
-    const { idToken } = req.body;
+    const { idToken, role } = req.body;
 
     if (!idToken) {
       return res.status(400).json({
@@ -258,6 +313,13 @@ const firebaseLogin = async (req, res) => {
         message: "Firebase ID Token is required",
       });
     }
+
+    if (!role || !["candidate", "hr", "admin"].includes(role.toLowerCase())) {
+  return res.status(400).json({
+    success: false,
+    message: "Invalid Role",
+  });
+}
 
     // Verify Firebase ID Token
     const decodedToken = await getAuth().verifyIdToken(idToken);
@@ -294,6 +356,13 @@ if (result.rows.length === 0) {
     }
 
     const user = result.rows[0];
+
+    if (user.role !== role.toLowerCase()) {
+  return res.status(403).json({
+    success: false,
+    message: `This email is registered as ${user.role}. You cannot login as ${role}.`,
+  });
+}
 
     // Save successful login
     if (user.role === "candidate") {
