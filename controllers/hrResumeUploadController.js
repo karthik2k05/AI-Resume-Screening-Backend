@@ -42,13 +42,29 @@ const currentPlan = subscription.rows[0];
 const uploadsNeeded = req.files.length;
 
 if (currentPlan.plan === "FREE") {
-  if (currentPlan.uploads_used >= currentPlan.uploads_limit) {
+  const uploadsUsed = Number(currentPlan.uploads_used || 0);
+  const uploadsLimit = Number(currentPlan.uploads_limit || 10);
+
+  const remainingUploads = uploadsLimit - uploadsUsed;
+
+  // Already reached the limit
+  if (remainingUploads <= 0) {
     return res.status(403).json({
       success: false,
-      message: "Your free trial has ended. Please upgrade your plan.",
+      message:
+        "Your free trial has ended. Please upgrade your plan for unlimited uploads.",
+    });
+  }
+
+  // Trying to upload more than remaining
+  if (uploadsNeeded > remainingUploads) {
+    return res.status(403).json({
+      success: false,
+      message: `You have only ${remainingUploads} free upload(s) remaining.`,
     });
   }
 }
+
 
 
     const uploadedResumes = [];
@@ -162,25 +178,28 @@ WHERE file_name=$9
   missing_skills: missingSkills,
 });
 }
+if (currentPlan.plan === "FREE") {
+  await pool.query(
+    `
+    UPDATE subscriptions
+    SET uploads_used = uploads_used + $1
+    WHERE user_type = $2
+    AND user_id = $3
+    `,
+    [
+      req.files.length,
+      userType,
+      userId,
+    ]
+  );
+}
 
-    return res.status(200).json({
+return res.status(200).json({
   success: true,
   message: "Resumes uploaded successfully.",
   resumes: uploadedResumes,
 });
-await pool.query(
-  `
-  UPDATE subscriptions
-  SET uploads_used = uploads_used + $1
-  WHERE user_type = $2
-  AND user_id = $3
-  `,
-  [
-    req.files.length,
-    userType,
-    userId,
-  ]
-);
+  
   } catch (error) {
 
     console.error(error);
