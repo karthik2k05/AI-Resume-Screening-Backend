@@ -41,10 +41,19 @@ if (subscription.rows.length === 0) {
 
 const currentPlan = subscription.rows[0];
 if (currentPlan.plan === "FREE") {
-  if (currentPlan.uploads_used >= currentPlan.uploads_limit) {
+  const uploadsUsed = Number(currentPlan.uploads_used || 0);
+  const uploadsLimit = Number(currentPlan.uploads_limit || 10);
+
+  const remainingUploads = uploadsLimit - uploadsUsed;
+
+  if (remainingUploads <= 0) {
     return res.status(403).json({
       success: false,
-      message: "Your free trial has ended. Please upgrade your plan.",
+      message:
+        "Your free trial has ended. Please upgrade your plan for unlimited uploads.",
+      uploads_used: uploadsUsed,
+      uploads_limit: uploadsLimit,
+      remaining_uploads: 0,
     });
   }
 }
@@ -148,9 +157,22 @@ await pool.query(
   `,
   [userType, userId]
 );
+const isUnlimited =
+  Number(currentPlan.uploads_limit) === -1;
+
+const remainingUploads = isUnlimited
+  ? "Unlimited"
+  : Math.max(
+      0,
+      Number(currentPlan.uploads_limit) -
+        (Number(currentPlan.uploads_used) +
+          (currentPlan.plan === "FREE" ? 1 : 0))
+    );
+
 return res.status(200).json({
   success: true,
   message: "Resume uploaded successfully.",
+
   resume: {
     score: {
       overall: score.overall,
@@ -158,6 +180,17 @@ return res.status(200).json({
     matchedSkills,
     missingSkills,
     formatting,
+  },
+
+  subscription: {
+    plan: currentPlan.plan,
+    uploads_used:
+      Number(currentPlan.uploads_used) +
+      (currentPlan.plan === "FREE" ? 1 : 0),
+    uploads_limit: isUnlimited
+      ? "Unlimited"
+      : currentPlan.uploads_limit,
+    remaining_uploads: remainingUploads,
   },
 });
   } catch (error) {

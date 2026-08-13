@@ -4,6 +4,36 @@ const jwt = require("jsonwebtoken");
 const { getAuth } = require("firebase-admin/auth");
 require("../firebase/firebaseAdmin");
 
+
+const ensureFreeSubscription = async (userType, userId) => {
+  const existingSubscription = await pool.query(
+    `
+    SELECT subscription_id
+    FROM subscriptions
+    WHERE user_type = $1
+    AND user_id = $2
+    `,
+    [userType, userId]
+  );
+
+  if (existingSubscription.rows.length === 0) {
+    await pool.query(
+      `
+      INSERT INTO subscriptions
+      (
+        user_type,
+        user_id,
+        plan,
+        uploads_used,
+        uploads_limit
+      )
+      VALUES
+      ($1, $2, 'FREE', 0, 10)
+      `,
+      [userType, userId]
+    );
+  }
+};
 // ================= REGISTER =================
 const register = async (req, res) => {
   try {
@@ -173,45 +203,16 @@ const login = async (req, res) => {
 
     // ================= CREATE FREE SUBSCRIPTION =================
     // Only HR and Candidate users need subscriptions.
-    if (table === "users" || table === "hrs") {
-      const subscriptionUserType =
-        table === "users" ? "candidate" : "hr";
 
-      const subscriptionUserId =
-        table === "users" ? user.user_id : user.id;
+// ================= CREATE FREE SUBSCRIPTION =================
 
-      const existingSubscription = await pool.query(
-        `
-        SELECT subscription_id
-        FROM subscriptions
-        WHERE user_type = $1
-        AND user_id = $2
-        `,
-        [subscriptionUserType, subscriptionUserId]
-      );
+if (table === "users") {
+  await ensureFreeSubscription("candidate", user.user_id);
+}
 
-      if (existingSubscription.rows.length === 0) {
-        await pool.query(
-          `
-          INSERT INTO subscriptions
-          (
-            user_type,
-            user_id,
-            plan,
-            uploads_used,
-            uploads_limit
-          )
-          VALUES
-          ($1, $2, 'FREE', 0, 10)
-          `,
-          [
-            subscriptionUserType,
-            subscriptionUserId,
-          ]
-        );
-      }
-    }
-
+if (table === "hrs") {
+  await ensureFreeSubscription("hr", user.id);
+}
     // Generate JWT
     const token = jwt.sign(
       {
@@ -295,6 +296,29 @@ if (result.rows.length === 0) {
 
     const user = result.rows[0];
 
+if (user.role !== role.toLowerCase()) {
+  return res.status(403).json({
+    success: false,
+    message: `This email is registered as ${user.role}. You cannot login as ${role}.`,
+  });
+}
+
+// ================= ENSURE FREE SUBSCRIPTION =================
+
+if (user.role === "candidate") {
+  await ensureFreeSubscription(
+    "candidate",
+    user.user_id
+  );
+}
+
+if (user.role === "hr") {
+  await ensureFreeSubscription(
+    "hr",
+    user.id
+  );
+}
+
     // Save successful login
     if (user.role === "candidate") {
   await pool.query(
@@ -364,23 +388,29 @@ const googleLogin = async (req, res) => {
 
     let user;
 
-    if (existingUser.rows.length === 0) {
+  if (existingUser.rows.length === 0) {
 
-      // Insert new Google user
-      const newUser = await pool.query(
-        `INSERT INTO users (name, email)
-         VALUES ($1, $2)
-         RETURNING *`,
-        [name, email]
-      );
+  const newUser = await pool.query(
+    `INSERT INTO users (name, email)
+     VALUES ($1, $2)
+     RETURNING *`,
+    [name, email]
+  );
 
-      user = newUser.rows[0];
+  user = newUser.rows[0];
 
-    } else {
+} else {
 
-      user = existingUser.rows[0];
+  user = existingUser.rows[0];
 
-    }
+}
+
+// ================= ENSURE FREE SUBSCRIPTION =================
+
+await ensureFreeSubscription(
+  "candidate",
+  user.user_id
+);
 
     // Save login history
     await pool.query(
