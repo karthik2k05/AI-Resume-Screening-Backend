@@ -42,13 +42,29 @@ const currentPlan = subscription.rows[0];
 const uploadsNeeded = req.files.length;
 
 if (currentPlan.plan === "FREE") {
-  if (currentPlan.uploads_used >= currentPlan.uploads_limit) {
+  const uploadsUsed = Number(currentPlan.uploads_used || 0);
+  const uploadsLimit = Number(currentPlan.uploads_limit || 10);
+
+  const remainingUploads = uploadsLimit - uploadsUsed;
+
+  // Already reached the limit
+  if (remainingUploads <= 0) {
     return res.status(403).json({
       success: false,
-      message: "Your free trial has ended. Please upgrade your plan.",
+      message:
+        "Your free trial has ended. Please upgrade your plan for unlimited uploads.",
+    });
+  }
+
+  // Trying to upload more than remaining
+  if (uploadsNeeded > remainingUploads) {
+    return res.status(403).json({
+      success: false,
+      message: `You have only ${remainingUploads} free upload(s) remaining.`,
     });
   }
 }
+
 
 
     const uploadedResumes = [];
@@ -78,32 +94,36 @@ for (const file of req.files) {
 
     const candidateName =
   file.originalname.replace(/\.[^/.]+$/, "");
+
   const existingResume = await pool.query(
   `
   SELECT resume_id
   FROM resumes
   WHERE file_name = $1
+  AND hr_id = $2 -- NEW: Check for the same HR
   `,
-  [file.originalname]
+  [file.originalname, userId] // NEW: Pass logged-in HR ID
 );
 
     if (existingResume.rows.length > 0) {
-        await pool.query(
+       await pool.query(
 `
 UPDATE resumes
 SET
-candidate_name=$1,
-file_path=$2,
-resume_text=$3,
-match_score=$4,
-detected_skills=$5,
-missing_skills=$6,
-resume_health=$7,
-match_summary=$8,
+hr_id=$1, -- NEW: Save the HR ID
+candidate_name=$2,
+file_path=$3,
+resume_text=$4,
+match_score=$5,
+detected_skills=$6,
+missing_skills=$7,
+resume_health=$8,
+match_summary=$9,
 uploaded_at=CURRENT_TIMESTAMP
-WHERE file_name=$9
+WHERE file_name=$10
 `,
 [
+    userId, // NEW: Logged-in HR ID
     candidateName,
     file.path,
     resumeText,
@@ -121,34 +141,36 @@ WHERE file_name=$9
         await pool.query(
 
   `
-  INSERT INTO resumes
-  (
-    user_id,
-    candidate_name,
-    file_name,
-    file_path,
-    resume_text,
-    match_score,
-    detected_skills,
-    missing_skills,
-    resume_health,
-    match_summary
-  )
-  VALUES
-  ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+ INSERT INTO resumes
+(
+  user_id,
+  hr_id, 
+  candidate_name,
+  file_name,
+  file_path,
+  resume_text,
+  match_score,
+  detected_skills,
+  missing_skills,
+  resume_health,
+  match_summary
+)
+VALUES
+($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
   `,
   [
-    null,
-    candidateName,
-    file.originalname,
-    file.path,
-    resumeText,
-    score.overall,
-    JSON.stringify(matchedSkills),
-    JSON.stringify(missingSkills),
-    resumeHealth,
-    matchSummary,
-  ]
+  null,
+  userId, // NEW: Logged-in HR ID
+  candidateName,
+  file.originalname,
+  file.path,
+  resumeText,
+  score.overall,
+  JSON.stringify(matchedSkills),
+  JSON.stringify(missingSkills),
+  resumeHealth,
+  matchSummary,
+]
 );
     }
 
@@ -162,25 +184,40 @@ WHERE file_name=$9
   missing_skills: missingSkills,
 });
 }
+if (currentPlan.plan === "FREE") {
 
-    return res.status(200).json({
+  // Count actual resumes currently uploaded by this HR
+  const resumeCount = await pool.query(
+    `
+    SELECT COUNT(*)::int AS count
+    FROM resumes
+    WHERE hr_id = $1
+    `,
+    [userId]
+  );
+
+  // Keep subscription count equal to actual stored resumes
+  await pool.query(
+    `
+    UPDATE subscriptions
+    SET uploads_used = $1
+    WHERE user_type = $2
+    AND user_id = $3
+    `,
+    [
+      resumeCount.rows[0].count,
+      userType,
+      userId,
+    ]
+  );
+}
+
+return res.status(200).json({
   success: true,
   message: "Resumes uploaded successfully.",
   resumes: uploadedResumes,
 });
-await pool.query(
-  `
-  UPDATE subscriptions
-  SET uploads_used = uploads_used + $1
-  WHERE user_type = $2
-  AND user_id = $3
-  `,
-  [
-    req.files.length,
-    userType,
-    userId,
-  ]
-);
+  
   } catch (error) {
 
     console.error(error);
