@@ -201,6 +201,7 @@ const getJobPostings = async (req, res) => {
 );
     }
 
+
     return res.status(200).json({
       success: true,
       jobs: jobs.rows,

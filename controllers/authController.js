@@ -378,6 +378,13 @@ if (user.role === "hr") {
   );
 }
 
+    if (user.role !== role.toLowerCase()) {
+  return res.status(403).json({
+    success: false,
+    message: `This email is registered as ${user.role}. You cannot login as ${role}.`,
+  });
+}
+
     // Save successful login
     if (user.role === "candidate") {
   await pool.query(
