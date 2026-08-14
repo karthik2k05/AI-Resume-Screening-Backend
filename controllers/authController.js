@@ -4,7 +4,6 @@ const jwt = require("jsonwebtoken");
 const { getAuth } = require("firebase-admin/auth");
 require("../firebase/firebaseAdmin");
 
-
 const ensureFreeSubscription = async (userType, userId) => {
   const existingSubscription = await pool.query(
     `

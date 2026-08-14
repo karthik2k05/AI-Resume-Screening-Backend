@@ -1,23 +1,66 @@
 const pool = require("../config/db");
+// ADDED: Get the logged-in HR's ID
+// Used to restrict HR data to their own job postings.
+const getHRId = async (req) => {
+  if (req.user?.role?.toLowerCase() === "hr" && req.user?.id) {
+    return req.user.id;
+  }
+
+  if (req.user?.email) {
+    const result = await pool.query(
+      `SELECT id
+       FROM hrs
+       WHERE LOWER(email) = LOWER($1)
+       LIMIT 1`,
+      [req.user.email]
+    );
+
+    if (result.rows.length > 0) {
+      return result.rows[0].id;
+    }
+  }
+
+  return null;
+};
 
 const getAllResumes = async (req, res) => {
   try {
 
-    const result = await pool.query(`
-      SELECT
-        resume_id,
-        user_id,
-        candidate_name,
-        file_name,
-        resume_text,
-        detected_skills,
-        missing_skills,
-        match_score,
-        resume_health,
-        uploaded_at
-      FROM resumes
-      ORDER BY uploaded_at DESC
-    `);
+    // ADDED: Get logged-in HR
+const hrId = await getHRId(req);
+
+if (!hrId) {
+  return res.status(403).json({
+    success: false,
+    message: "HR account not found.",
+  });
+}
+
+// ADDED: Get only resumes of candidates who applied
+// to jobs owned by this HR.
+const result = await pool.query(
+  `
+  SELECT
+    r.resume_id,
+    r.user_id,
+    r.hr_id,
+    r.candidate_name,
+    r.file_name,
+    r.resume_text,
+    r.detected_skills,
+    r.missing_skills,
+    r.match_score,
+    r.resume_health,
+    r.uploaded_at
+
+  FROM resumes r
+
+  WHERE r.hr_id = $1
+
+  ORDER BY r.uploaded_at DESC
+  `,
+  [hrId]
+);
 
     const resumes = result.rows.map((row) => ({
       ...row,
@@ -46,42 +89,94 @@ const getAllResumes = async (req, res) => {
   }
 };
 
+// ================================
+// Delete Resume
+// HR can delete only resumes related
+// to their own job postings
+// ================================
 const deleteResume = async (req, res) => {
   try {
 
     const { resumeId } = req.params;
 
-// Delete ATS scores first
-await pool.query(
-  `
-  DELETE FROM ats_scores
-  WHERE application_id IN (
-    SELECT application_id
-    FROM applications
-    WHERE resume_id = $1
-  )
-  `,
-  [resumeId]
-);
+    // ADDED: Get logged-in HR ID
+    const hrId = await getHRId(req);
 
-// Delete applications
-await pool.query(
-  `
-  DELETE FROM applications
-  WHERE resume_id = $1
-  `,
-  [resumeId]
-);
+    if (!hrId) {
+      return res.status(403).json({
+        success: false,
+        message: "HR account not found.",
+      });
+    }
 
-// Delete resume
-const deleted = await pool.query(
-  `
-  DELETE FROM resumes
-  WHERE resume_id = $1
-  RETURNING *
-  `,
-  [resumeId]
-);
+    // ================================
+    // Check whether this resume belongs
+    // to an applicant of this HR's job
+    // ================================
+    const ownership = await pool.query(
+      `
+      SELECT r.resume_id
+
+      FROM resumes r
+
+      INNER JOIN applications a
+        ON r.resume_id = a.resume_id
+
+      INNER JOIN job_postings jp
+        ON a.job_id = jp.id
+
+      WHERE r.resume_id = $1
+      AND jp.hr_id = $2
+
+      LIMIT 1
+      `,
+      [resumeId, hrId]
+    );
+
+    if (ownership.rows.length === 0) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not allowed to delete this resume.",
+      });
+    }
+
+    // ================================
+    // Delete ATS scores first
+    // ================================
+    await pool.query(
+      `
+      DELETE FROM ats_scores
+      WHERE application_id IN (
+        SELECT application_id
+        FROM applications
+        WHERE resume_id = $1
+      )
+      `,
+      [resumeId]
+    );
+
+    // ================================
+    // Delete applications
+    // ================================
+    await pool.query(
+      `
+      DELETE FROM applications
+      WHERE resume_id = $1
+      `,
+      [resumeId]
+    );
+
+    // ================================
+    // Delete resume
+    // ================================
+    const deleted = await pool.query(
+      `
+      DELETE FROM resumes
+      WHERE resume_id = $1
+      RETURNING *
+      `,
+      [resumeId]
+    );
 
     if (deleted.rows.length === 0) {
       return res.status(404).json({
@@ -96,7 +191,8 @@ const deleted = await pool.query(
     });
 
   } catch (err) {
-    console.error(err);
+
+    console.error("DELETE RESUME ERROR:", err);
 
     return res.status(500).json({
       success: false,
@@ -105,32 +201,93 @@ const deleted = await pool.query(
   }
 };
 
+// ================================
+// Delete All Resumes
+// HR can delete only resumes/applications
+// related to their own job postings
+// ================================
 const deleteAllResumes = async (req, res) => {
   try {
 
-    // Delete ATS scores first
-    await pool.query(`
+    // ADDED: Get logged-in HR ID
+    const hrId = await getHRId(req);
+
+    if (!hrId) {
+      return res.status(403).json({
+        success: false,
+        message: "HR account not found.",
+      });
+    }
+
+    // Get resume IDs belonging to this HR's applicants
+    const resumes = await pool.query(
+      `
+      SELECT DISTINCT a.resume_id
+      FROM applications a
+      INNER JOIN job_postings jp
+        ON a.job_id = jp.id
+      WHERE jp.hr_id = $1
+      AND a.resume_id IS NOT NULL
+      `,
+      [hrId]
+    );
+
+    const resumeIds = resumes.rows.map(row => row.resume_id);
+
+    if (resumeIds.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: "No resumes found for this HR.",
+      });
+    }
+
+    // Delete ATS scores
+    await pool.query(
+      `
       DELETE FROM ats_scores
-    `);
+      WHERE application_id IN (
+        SELECT a.application_id
+        FROM applications a
+        INNER JOIN job_postings jp
+          ON a.job_id = jp.id
+        WHERE jp.hr_id = $1
+      )
+      `,
+      [hrId]
+    );
 
-    // Delete all applications
-    await pool.query(`
+    // Delete applications
+    await pool.query(
+      `
       DELETE FROM applications
-    `);
+      WHERE application_id IN (
+        SELECT a.application_id
+        FROM applications a
+        INNER JOIN job_postings jp
+          ON a.job_id = jp.id
+        WHERE jp.hr_id = $1
+      )
+      `,
+      [hrId]
+    );
 
-    // Delete all resumes
-    await pool.query(`
+    // Delete only the resumes collected above
+    await pool.query(
+      `
       DELETE FROM resumes
-    `);
+      WHERE resume_id = ANY($1::int[])
+      `,
+      [resumeIds]
+    );
 
     return res.status(200).json({
       success: true,
-      message: "All resumes deleted successfully.",
+      message: "All resumes for your job postings deleted successfully.",
     });
 
   } catch (error) {
 
-    console.error(error);
+    console.error("DELETE ALL HR RESUMES ERROR:", error);
 
     return res.status(500).json({
       success: false,
@@ -139,10 +296,24 @@ const deleteAllResumes = async (req, res) => {
 
   }
 };
+// ================================
+// Get Applications for Logged-in HR
+// ================================
 const getAllApplications = async (req, res) => {
   try {
 
-    const result = await pool.query(`
+    // ADDED: Get logged-in HR ID
+    const hrId = await getHRId(req);
+
+    if (!hrId) {
+      return res.status(403).json({
+        success: false,
+        message: "HR account not found.",
+      });
+    }
+
+    const result = await pool.query(
+      `
       SELECT
         a.application_id,
         a.status,
@@ -169,8 +340,13 @@ const getAllApplications = async (req, res) => {
       INNER JOIN job_postings jp
         ON a.job_id = jp.id
 
+      -- ADDED: Only show applications for this HR's jobs
+      WHERE jp.hr_id = $1
+
       ORDER BY a.applied_at DESC
-    `);
+      `,
+      [hrId]
+    );
 
     return res.status(200).json({
       success: true,
@@ -187,6 +363,10 @@ const getAllApplications = async (req, res) => {
     });
   }
 };
+// ================================
+// Update Application Status
+// HR can update only their own applicants
+// ================================
 const updateApplicationStatus = async (
   req,
   res,
@@ -196,20 +376,41 @@ const updateApplicationStatus = async (
 
     const { applicationId } = req.params;
 
+    // ADDED: Get logged-in HR ID
+    const hrId = await getHRId(req);
+
+    if (!hrId) {
+      return res.status(403).json({
+        success: false,
+        message: "HR account not found.",
+      });
+    }
+
     const result = await pool.query(
       `
-      UPDATE applications
-      SET status=$1
-      WHERE application_id=$2
-      RETURNING *
+      UPDATE applications a
+
+      SET status = $1
+
+      FROM job_postings jp
+
+      WHERE a.application_id = $2
+
+      AND a.job_id = jp.id
+
+      -- ADDED: Only allow HR who owns the job
+      AND jp.hr_id = $3
+
+      RETURNING a.*
       `,
-      [status, applicationId]
+      [status, applicationId, hrId]
     );
 
     if (result.rows.length === 0) {
       return res.status(404).json({
         success: false,
-        message: "Application not found.",
+        message:
+          "Application not found or not assigned to your HR account.",
       });
     }
 
@@ -242,6 +443,16 @@ const getApplicationDetails = async (req, res) => {
   try {
 
     const { applicationId } = req.params;
+
+    // ADDED: Get logged-in HR ID
+const hrId = await getHRId(req);
+
+if (!hrId) {
+  return res.status(403).json({
+    success: false,
+    message: "HR account not found.",
+  });
+}
 
     const result = await pool.query(
       `
@@ -277,8 +488,9 @@ const getApplicationDetails = async (req, res) => {
         ON a.job_id = jp.id
 
       WHERE a.application_id = $1
+AND jp.hr_id = $2
       `,
-      [applicationId]
+      [applicationId, hrId]
     );
 
     if (result.rows.length === 0) {
@@ -317,52 +529,134 @@ const getApplicationDetails = async (req, res) => {
   }
 };
 
+// ================================
+// HR Dashboard
+// Shows only data belonging to
+// the logged-in HR's job postings
+// ================================
 const getDashboard = async (req, res) => {
   try {
 
-    const totalApplicants = await pool.query(`
-      SELECT COUNT(*)::int AS count
-      FROM applications
-    `);
+    // ADDED: Get logged-in HR ID
+    const hrId = await getHRId(req);
 
-    const activeJobPostings = await pool.query(`
+    if (!hrId) {
+      return res.status(403).json({
+        success: false,
+        message: "HR account not found.",
+      });
+    }
+
+    // ================================
+    // Total Applicants
+    // Only applications for this HR's jobs
+    // ================================
+    const totalApplicants = await pool.query(
+      `
+      SELECT COUNT(*)::int AS count
+      FROM applications a
+      INNER JOIN job_postings jp
+        ON a.job_id = jp.id
+      WHERE jp.hr_id = $1
+      `,
+      [hrId]
+    );
+
+    // ================================
+    // Active Job Postings
+    // Only this HR's jobs
+    // ================================
+    const activeJobPostings = await pool.query(
+      `
       SELECT COUNT(*)::int AS count
       FROM job_postings
-      WHERE LOWER(status)='open'
-    `);
+      WHERE hr_id = $1
+      AND LOWER(status) = 'open'
+      `,
+      [hrId]
+    );
 
-    const interviewsThisWeek = await pool.query(`
+    // ================================
+    // Interviews This Week
+    // Only applicants for this HR's jobs
+    // ================================
+    const interviewsThisWeek = await pool.query(
+      `
       SELECT COUNT(*)::int AS count
-      FROM applications
-      WHERE status='Interview'
-      AND applied_at >= NOW() - INTERVAL '7 days'
-    `);
+      FROM applications a
+      INNER JOIN job_postings jp
+        ON a.job_id = jp.id
+      WHERE jp.hr_id = $1
+      AND a.status = 'Interview'
+      AND a.applied_at >= NOW() - INTERVAL '7 days'
+      `,
+      [hrId]
+    );
 
-    const averageATSScore = await pool.query(`
+    // ================================
+    // Average ATS Score
+    // Only applications for this HR's jobs
+    // ================================
+    const averageATSScore = await pool.query(
+      `
       SELECT
-      ROUND(AVG(match_score),2) AS average
-      FROM applications
-    `);
+        ROUND(AVG(a.match_score), 2) AS average
+      FROM applications a
+      INNER JOIN job_postings jp
+        ON a.job_id = jp.id
+      WHERE jp.hr_id = $1
+      `,
+      [hrId]
+    );
 
-    const applicantTrend = await pool.query(`
+    // ================================
+    // Applicant Trend
+    // Only this HR's applicants
+    // ================================
+    const applicantTrend = await pool.query(
+      `
       SELECT
-      TO_CHAR(applied_at,'Mon') AS month,
-      COUNT(*)::int AS applicants
-      FROM applications
+        TO_CHAR(a.applied_at, 'Mon') AS month,
+        COUNT(*)::int AS applicants
+
+      FROM applications a
+
+      INNER JOIN job_postings jp
+        ON a.job_id = jp.id
+
+      WHERE jp.hr_id = $1
+
       GROUP BY
-      TO_CHAR(applied_at,'Mon'),
-      DATE_TRUNC('month',applied_at)
-      ORDER BY
-      DATE_TRUNC('month',applied_at)
-    `);
+        TO_CHAR(a.applied_at, 'Mon'),
+        DATE_TRUNC('month', a.applied_at)
 
-    const hiringFunnel = await pool.query(`
+      ORDER BY
+        DATE_TRUNC('month', a.applied_at)
+      `,
+      [hrId]
+    );
+
+    // ================================
+    // Hiring Funnel
+    // Only this HR's applicants
+    // ================================
+    const hiringFunnel = await pool.query(
+      `
       SELECT
-      status,
-      COUNT(*)::int AS count
-      FROM applications
-      GROUP BY status
-    `);
+        a.status,
+        COUNT(*)::int AS count
+
+      FROM applications a
+
+      INNER JOIN job_postings jp
+        ON a.job_id = jp.id
+
+      WHERE jp.hr_id = $1
+
+      GROUP BY a.status
+      `,
+      [hrId]
+    );
 
     return res.json({
       success: true,
@@ -395,20 +689,35 @@ const getDashboard = async (req, res) => {
 
   } catch (error) {
 
-    console.error(error);
+    console.error("HR DASHBOARD ERROR:", error);
 
     return res.status(500).json({
 
-      success:false,
+      success: false,
 
-      message:"Internal Server Error",
+      message: "Internal Server Error",
 
     });
 
   }
 };
+// ================================
+// HR Analytics
+// Shows only analytics for the
+// logged-in HR's job postings
+// ================================
 const getAnalytics = async (req, res) => {
   try {
+
+    // ADDED: Get logged-in HR ID
+    const hrId = await getHRId(req);
+
+    if (!hrId) {
+      return res.status(403).json({
+        success: false,
+        message: "HR account not found.",
+      });
+    }
 
     const [
       totalApplicants,
@@ -421,126 +730,216 @@ const getAnalytics = async (req, res) => {
       topJobs,
     ] = await Promise.all([
 
-      pool.query(`
+      // ================================
+      // Total Applicants
+      // ================================
+      pool.query(
+        `
         SELECT COUNT(*)::int AS count
-        FROM applications
-      `),
 
-      pool.query(`
+        FROM applications a
+
+        INNER JOIN job_postings jp
+          ON a.job_id = jp.id
+
+        WHERE jp.hr_id = $1
+        `,
+        [hrId]
+      ),
+
+      // ================================
+      // Active Jobs
+      // ================================
+      pool.query(
+        `
         SELECT COUNT(*)::int AS count
+
         FROM job_postings
-        WHERE LOWER(status)='open'
-      `),
 
-      pool.query(`
+        WHERE hr_id = $1
+        AND LOWER(status) = 'open'
+        `,
+        [hrId]
+      ),
+
+      // ================================
+      // Interviews
+      // ================================
+      pool.query(
+        `
         SELECT COUNT(*)::int AS count
-        FROM applications
-        WHERE status='Interview'
-      `),
 
-      pool.query(`
-        SELECT
-        ROUND(AVG(match_score),2) AS average
-        FROM applications
-      `),
+        FROM applications a
 
-      pool.query(`
+        INNER JOIN job_postings jp
+          ON a.job_id = jp.id
+
+        WHERE jp.hr_id = $1
+        AND a.status = 'Interview'
+        `,
+        [hrId]
+      ),
+
+      // ================================
+      // Average ATS
+      // ================================
+      pool.query(
+        `
         SELECT
-        TO_CHAR(applied_at,'Mon') AS month,
-        COUNT(*)::int AS applicants
-        FROM applications
+          ROUND(AVG(a.match_score), 2) AS average
+
+        FROM applications a
+
+        INNER JOIN job_postings jp
+          ON a.job_id = jp.id
+
+        WHERE jp.hr_id = $1
+        `,
+        [hrId]
+      ),
+
+      // ================================
+      // Monthly Applicants
+      // ================================
+      pool.query(
+        `
+        SELECT
+          TO_CHAR(a.applied_at, 'Mon') AS month,
+          COUNT(*)::int AS applicants
+
+        FROM applications a
+
+        INNER JOIN job_postings jp
+          ON a.job_id = jp.id
+
+        WHERE jp.hr_id = $1
+
         GROUP BY
-        DATE_TRUNC('month',applied_at),
-        TO_CHAR(applied_at,'Mon')
+          DATE_TRUNC('month', a.applied_at),
+          TO_CHAR(a.applied_at, 'Mon')
+
         ORDER BY
-        DATE_TRUNC('month',applied_at)
-      `),
+          DATE_TRUNC('month', a.applied_at)
+        `,
+        [hrId]
+      ),
 
-      pool.query(`
+      // ================================
+      // Hiring Funnel
+      // ================================
+      pool.query(
+        `
         SELECT
-        status,
-        COUNT(*)::int AS count
-        FROM applications
-        GROUP BY status
-      `),
+          a.status,
+          COUNT(*)::int AS count
 
-      pool.query(`
+        FROM applications a
+
+        INNER JOIN job_postings jp
+          ON a.job_id = jp.id
+
+        WHERE jp.hr_id = $1
+
+        GROUP BY a.status
+        `,
+        [hrId]
+      ),
+
+      // ================================
+      // Applications by Department
+      // ================================
+      pool.query(
+        `
         SELECT
-        jp.department,
-        COUNT(a.application_id)::int AS applicants
+          jp.department,
+          COUNT(a.application_id)::int AS applicants
 
         FROM job_postings jp
 
         LEFT JOIN applications a
-        ON jp.id=a.job_id
+          ON jp.id = a.job_id
+
+        WHERE jp.hr_id = $1
 
         GROUP BY jp.department
 
         ORDER BY applicants DESC
-      `),
+        `,
+        [hrId]
+      ),
 
-      pool.query(`
+      // ================================
+      // Applications by Job
+      // ================================
+      pool.query(
+        `
         SELECT
-        jp.title,
-        COUNT(a.application_id)::int AS applicants
+          jp.title,
+          COUNT(a.application_id)::int AS applicants
 
         FROM job_postings jp
 
         LEFT JOIN applications a
-        ON jp.id=a.job_id
+          ON jp.id = a.job_id
 
-        GROUP BY jp.title
+        WHERE jp.hr_id = $1
+
+        GROUP BY
+          jp.id,
+          jp.title
 
         ORDER BY applicants DESC
-      `)
+        `,
+        [hrId]
+      )
 
     ]);
 
-    res.json({
+    return res.json({
 
-      success:true,
+      success: true,
 
-      statistics:{
+      statistics: {
 
         totalApplicants:
-        totalApplicants.rows[0].count,
+          totalApplicants.rows[0].count,
 
         activeJobs:
-        activeJobs.rows[0].count,
+          activeJobs.rows[0].count,
 
         interviews:
-        interviews.rows[0].count,
+          interviews.rows[0].count,
 
         averageATS:
-        Number(
-          averageATS.rows[0].average || 0
-        )
+          Number(
+            averageATS.rows[0].average || 0
+          )
 
       },
 
       monthlyApplicants:
-      monthlyApplicants.rows,
+        monthlyApplicants.rows,
 
       hiringFunnel:
-      hiringFunnel.rows,
+        hiringFunnel.rows,
 
       departmentApplications:
-      departmentApplications.rows,
+        departmentApplications.rows,
 
       topJobs:
-      topJobs.rows
+        topJobs.rows
 
     });
 
   } catch (error) {
 
-    console.error(error);
+    console.error("HR ANALYTICS ERROR:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
 
-      success:false,
+      success: false,
 
-      message:"Internal Server Error"
+      message: "Internal Server Error"
 
     });
 

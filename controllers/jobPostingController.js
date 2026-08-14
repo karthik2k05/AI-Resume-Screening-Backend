@@ -145,25 +145,25 @@ const getJobPostings = async (req, res) => {
       );
 
       jobs = await pool.query(
-        `
-        SELECT
-  jp.*,
-  COUNT(a.application_id)::int AS applicants_count
-FROM job_postings jp
-LEFT JOIN applications a
-  ON a.job_id = jp.id
-WHERE jp.hr_id = $1
-AND (
-  LOWER(jp.title) LIKE LOWER($2)
-  OR LOWER(jp.department) LIKE LOWER($2)
-)
-GROUP BY jp.id
-ORDER BY jp.posted_date DESC
-LIMIT $3
-OFFSET $4
-        `,
-        [hrId, `%${search}%`, limit, offset]
-      );
+  `
+  SELECT
+    jp.*,
+    COUNT(a.application_id)::int AS applicants_count
+  FROM job_postings jp
+  LEFT JOIN applications a
+    ON a.job_id = jp.id
+  WHERE jp.hr_id = $1
+  AND (
+    LOWER(jp.title) LIKE LOWER($2)
+    OR LOWER(jp.department) LIKE LOWER($2)
+  )
+  GROUP BY jp.id
+  ORDER BY jp.posted_date DESC
+  LIMIT $3
+  OFFSET $4
+  `,
+  [hrId, `%${search}%`, limit, offset]
+);
     }
 
     // =========================
@@ -182,23 +182,23 @@ OFFSET $4
       );
 
       jobs = await pool.query(
-        `
-        SELECT
-  jp.*,
-  COUNT(a.application_id)::int AS applicants_count
-FROM job_postings jp
-LEFT JOIN applications a
-  ON a.job_id = jp.id
-WHERE
-  LOWER(jp.title) LIKE LOWER($1)
-  OR LOWER(jp.department) LIKE LOWER($1)
-GROUP BY jp.id
-ORDER BY jp.posted_date DESC
-LIMIT $2
-OFFSET $3
-        `,
-        [`%${search}%`, limit, offset]
-      );
+  `
+  SELECT
+    jp.*,
+    COUNT(a.application_id)::int AS applicants_count
+  FROM job_postings jp
+  LEFT JOIN applications a
+    ON a.job_id = jp.id
+  WHERE
+    LOWER(jp.title) LIKE LOWER($1)
+    OR LOWER(jp.department) LIKE LOWER($1)
+  GROUP BY jp.id
+  ORDER BY jp.posted_date DESC
+  LIMIT $2
+  OFFSET $3
+  `,
+  [`%${search}%`, limit, offset]
+);
     }
 
     return res.status(200).json({
