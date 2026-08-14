@@ -146,16 +146,21 @@ const getJobPostings = async (req, res) => {
 
       jobs = await pool.query(
         `
-        SELECT *
-        FROM job_postings
-        WHERE hr_id = $1
-        AND (
-          LOWER(title) LIKE LOWER($2)
-          OR LOWER(department) LIKE LOWER($2)
-        )
-        ORDER BY posted_date DESC
-        LIMIT $3
-        OFFSET $4
+        SELECT
+  jp.*,
+  COUNT(a.application_id)::int AS applicants_count
+FROM job_postings jp
+LEFT JOIN applications a
+  ON a.job_id = jp.id
+WHERE jp.hr_id = $1
+AND (
+  LOWER(jp.title) LIKE LOWER($2)
+  OR LOWER(jp.department) LIKE LOWER($2)
+)
+GROUP BY jp.id
+ORDER BY jp.posted_date DESC
+LIMIT $3
+OFFSET $4
         `,
         [hrId, `%${search}%`, limit, offset]
       );
@@ -178,14 +183,19 @@ const getJobPostings = async (req, res) => {
 
       jobs = await pool.query(
         `
-        SELECT *
-        FROM job_postings
-        WHERE
-          LOWER(title) LIKE LOWER($1)
-          OR LOWER(department) LIKE LOWER($1)
-        ORDER BY posted_date DESC
-        LIMIT $2
-        OFFSET $3
+        SELECT
+  jp.*,
+  COUNT(a.application_id)::int AS applicants_count
+FROM job_postings jp
+LEFT JOIN applications a
+  ON a.job_id = jp.id
+WHERE
+  LOWER(jp.title) LIKE LOWER($1)
+  OR LOWER(jp.department) LIKE LOWER($1)
+GROUP BY jp.id
+ORDER BY jp.posted_date DESC
+LIMIT $2
+OFFSET $3
         `,
         [`%${search}%`, limit, offset]
       );
