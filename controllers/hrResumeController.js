@@ -946,10 +946,123 @@ const getAnalytics = async (req, res) => {
   }
 };
 
+// Add a screened candidate to the applications pipeline
+const createApplication = async (req, res) => {
+  try {
+    const { jobId, resumeId, matchScore } = req.body;
+
+    if (!jobId || !resumeId) {
+      return res.status(400).json({
+        success: false,
+        message: "Job ID and Resume ID are required.",
+      });
+    }
+
+    const hrId = await getHRId(req);
+
+    if (!hrId) {
+      return res.status(403).json({
+        success: false,
+        message: "HR account not found.",
+      });
+    }
+
+    // Make sure this job belongs to the logged-in HR
+    const jobCheck = await pool.query(
+      `
+      SELECT id
+      FROM job_postings
+      WHERE id = $1
+      AND hr_id = $2
+      LIMIT 1
+      `,
+      [jobId, hrId]
+    );
+
+    if (jobCheck.rows.length === 0) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not allowed to use this job posting.",
+      });
+    }
+
+    // Make sure the resume exists
+    const resumeCheck = await pool.query(
+      `
+      SELECT resume_id, user_id
+      FROM resumes
+      WHERE resume_id = $1
+      AND hr_id = $2
+      LIMIT 1
+      `,
+      [resumeId, hrId]
+    );
+
+    if (resumeCheck.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Resume not found.",
+      });
+    }
+
+    const userId = resumeCheck.rows[0].user_id;
+
+    // Prevent duplicate application for same job + resume
+    const existing = await pool.query(
+  `
+  SELECT application_id
+  FROM applications
+  WHERE job_id = $1
+  AND user_id = $2
+  LIMIT 1
+  `,
+  [jobId, userId]
+);
+
+    if (existing.rows.length > 0) {
+      return res.status(409).json({
+        success: false,
+        message: "Candidate is already in the pipeline for this job.",
+        application_id: existing.rows[0].application_id,
+      });
+    }
+
+    const result = await pool.query(
+      `
+      INSERT INTO applications
+        (job_id, user_id, resume_id, status, applied_at, match_score)
+      VALUES
+        ($1, $2, $3, 'Screening', NOW(), $4)
+      RETURNING *
+      `,
+      [
+        jobId,
+        userId,
+        resumeId,
+        Number(matchScore) || 0,
+      ]
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: "Candidate advanced to pipeline successfully.",
+      application: result.rows[0],
+    });
+
+  } catch (error) {
+    console.error("CREATE APPLICATION ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+  }
+};
 module.exports = {
     getAllResumes,
     deleteResume,
     deleteAllResumes,
+     createApplication,
     getAllApplications,
     shortlistApplication,
     rejectApplication,

@@ -8,6 +8,7 @@ const {
     getAllResumes,
     deleteResume,
     deleteAllResumes,
+     createApplication,
     getAllApplications,
     shortlistApplication,
     rejectApplication,
@@ -32,6 +33,13 @@ router.delete(
     verifyToken,
     deleteAllResumes
 );
+
+router.post(
+  "/applications",
+  verifyToken,
+  createApplication
+);
+
 router.get(
   "/applications",
   verifyToken,
