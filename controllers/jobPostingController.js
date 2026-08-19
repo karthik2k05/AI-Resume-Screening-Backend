@@ -1,4 +1,9 @@
 const pool = require("../config/db");
+const {
+  createGlobalCandidateNotification,
+  createGlobalAdminNotification,
+  createGlobalHRNotification,
+} = require("../services/notificationService");
 const getHRId = async (req) => {
   if (req.user?.role?.toLowerCase() === "hr" && req.user?.id) {
     return req.user.id;
@@ -81,6 +86,27 @@ if (!hrId) {
         hrId
       ]
     );
+
+   // Send global notification to all candidates
+await createGlobalCandidateNotification({
+  title: "New Hiring Drive",
+  message: `A new job opportunity is available: ${title}`,
+  type: "global",
+});
+
+// Send global notification to all admins
+await createGlobalAdminNotification({
+  title: "New Job Posted",
+  message: `A new job has been posted: ${title}`,
+  type: "global",
+});
+
+// Send global notification to all hrs
+await createGlobalHRNotification({
+  title: "New Job Posted",
+  message: `A new job has been posted: ${title}`,
+  type: "global",
+});
 
     res.status(201).json({
       success: true,
@@ -201,7 +227,6 @@ const getJobPostings = async (req, res) => {
 );
     }
 
-
     return res.status(200).json({
       success: true,
       jobs: jobs.rows,
@@ -232,8 +257,8 @@ const toggleJobPostingStatus = async (req, res) => {
 
     // Check if job exists
     const existingJob = await pool.query(
-      `SELECT id, status
-       FROM job_postings
+      `SELECT id, title, status
+FROM job_postings
        WHERE id = $1`,
       [id]
     );
@@ -257,6 +282,39 @@ const toggleJobPostingStatus = async (req, res) => {
        RETURNING *`,
       [updatedStatus, id]
     );
+
+    // Notify candidates who applied for this job
+const applicants = await pool.query(
+  `
+  SELECT DISTINCT user_id
+  FROM applications
+  WHERE job_id = $1
+  AND user_id IS NOT NULL
+  `,
+  [id]
+);
+
+for (const applicant of applicants.rows) {
+  await pool.query(
+    `
+    INSERT INTO notifications
+      (user_id, user_role, title, message, type, is_read)
+    VALUES
+      ($1, $2, $3, $4, $5, false)
+    `,
+    [
+      applicant.user_id,
+      "candidate",
+      updatedStatus === "closed"
+        ? "Job Posting Closed"
+        : "Job Posting Reopened",
+      updatedStatus === "closed"
+        ? `The job "${existingJob.rows[0].title}" has been closed and is no longer accepting applications.`
+        : `The job "${existingJob.rows[0].title}" has been reopened and is now active.`,
+      "job_status",
+    ]
+  );
+}
 
     res.status(200).json({
       success: true,

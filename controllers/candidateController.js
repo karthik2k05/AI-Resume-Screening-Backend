@@ -148,6 +148,23 @@ WHERE user_id=$10
   );
 
 }
+
+// ================= NOTIFICATION =================
+await pool.query(
+  `
+  INSERT INTO notifications
+  (user_id, user_role, title, message, type, is_read)
+  VALUES ($1, $2, $3, $4, $5, false)
+  `,
+  [
+    userId,
+    "candidate",
+    "Resume Analysis Complete",
+    `Your resume has been analyzed successfully. ATS Score: ${score.overall}%`,
+    "resume_analysis",
+  ]
+);
+
 await pool.query(
   `
   UPDATE subscriptions
@@ -354,7 +371,8 @@ const jobResult = await pool.query(
   SELECT
     id,
     title,
-    company
+    company,
+    hr_id
   FROM job_postings
   WHERE
     id = $1
@@ -391,6 +409,22 @@ const jobResult = await pool.query(
         "Applied",
       ]
     );
+
+    // ================= NOTIFY HR =================
+await pool.query(
+  `
+  INSERT INTO notifications
+  (user_id, user_role, title, message, type, is_read)
+  VALUES ($1, $2, $3, $4, $5, false)
+  `,
+  [
+    jobResult.rows[0].hr_id,
+    "hr",
+    "New Application Received",
+    `A candidate has applied for ${jobResult.rows[0].title}`,
+    "new_application",
+  ]
+);
 
     return res.status(201).json({
       success: true,
