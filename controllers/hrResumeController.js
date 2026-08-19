@@ -1,4 +1,9 @@
 const pool = require("../config/db");
+
+const {
+  createNotification,
+} = require("../services/notificationService");
+
 // ADDED: Get the logged-in HR's ID
 // Used to restrict HR data to their own job postings.
 const getHRId = async (req) => {
@@ -413,6 +418,17 @@ const updateApplicationStatus = async (
           "Application not found or not assigned to your HR account.",
       });
     }
+
+    //notify for application status changed
+    const application = result.rows[0];
+
+await createNotification({
+  userId: application.user_id,
+  userRole: "candidate",
+  title: "Application Status Updated",
+  message: `Your application status changed to: ${status}`,
+  type: "status_update",
+});
 
     return res.status(200).json({
       success: true,

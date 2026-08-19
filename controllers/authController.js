@@ -15,6 +15,7 @@ const ensureFreeSubscription = async (userType, userId) => {
     [userType, userId]
   );
 
+
   if (existingSubscription.rows.length === 0) {
     await pool.query(
       `
@@ -33,7 +34,6 @@ const ensureFreeSubscription = async (userType, userId) => {
     );
   }
 };
-
 // ================= REGISTER =================
 const register = async (req, res) => {
   try {
@@ -356,16 +356,12 @@ if (result.rows.length === 0) {
     }
 
     const user = result.rows[0];
-
-
 if (user.role !== role.toLowerCase()) {
-
   return res.status(403).json({
     success: false,
     message: `This email is registered as ${user.role}. You cannot login as ${role}.`,
   });
 }
-
 
 // ================= ENSURE FREE SUBSCRIPTION =================
 
@@ -382,7 +378,6 @@ if (user.role === "hr") {
     user.id
   );
 }
-
 
     // Save successful login
     if (user.role === "candidate") {
