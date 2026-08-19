@@ -11,13 +11,19 @@ const path = require("path");
 const authRoutes = require("./routes/authRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const candidateRoutes = require("./routes/candidateRoutes");
+
+// HR routes
+const hrRoutes = require("./routes/hrRoutes");
 const hrResumeRoutes = require("./routes/hrResumeRoutes");
 const hrResumeUploadRoutes = require("./routes/hrResumeUploadRoutes");
+
 const supportRoutes = require("./routes/supportRoutes");
 const searchRoutes = require("./routes/searchRoutes");
 const jobPostingRoutes = require("./routes/jobPostingRoutes");
 const settingsRoutes = require("./routes/settingsRoutes");
 const subscriptionRoutes = require("./routes/subscriptionRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
+
 const app = express();
 
 /* Middleware */
@@ -42,15 +48,27 @@ app.use(
 /* Routes */
 
 app.use("/api/auth", authRoutes);
+
 app.use("/api/admin", adminRoutes);
+
 app.use("/api/candidate", candidateRoutes);
+
+// HR routes
+app.use("/api/hr", hrRoutes);
 app.use("/api/hr", hrResumeRoutes);
 app.use("/api/hr", hrResumeUploadRoutes);
+
 app.use("/api/support", supportRoutes);
+
 app.use("/api/search", searchRoutes);
+
 app.use("/api/admin/job-postings", jobPostingRoutes);
+
 app.use("/api/settings", settingsRoutes);
+
 app.use("/api/subscription", subscriptionRoutes);
+
+app.use("/api/notifications", notificationRoutes);
 
 app.get("/", (req, res) => {
   res.send("AI Resume Screening Backend Running...");
@@ -77,15 +95,13 @@ io.on("connection", (socket) => {
   console.log("🟢 Connected:", socket.id);
 
   // Candidate joins private room
- socket.on("join_candidate_room", (candidateId) => {
+  socket.on("join_candidate_room", (candidateId) => {
+    socket.join(candidateId);
 
-  socket.join(candidateId);
+    console.log("Candidate joined room:", candidateId);
 
-  console.log("Candidate joined room:", candidateId);
-
-  console.log("Socket Rooms:", [...socket.rooms]);
-
-});
+    console.log("Socket Rooms:", [...socket.rooms]);
+  });
 
   // Admin joins admin room
   socket.on("join_admin", () => {
@@ -95,62 +111,75 @@ io.on("connection", (socket) => {
 
   // Candidate → Admin
   socket.on("candidate_message", async (data) => {
-  console.log("Candidate:", data);
+    console.log("Candidate:", data);
 
-  try {
-    await pool.query(
-      `INSERT INTO support_messages(candidate_id, sender, message)
-       VALUES($1, $2, $3)`,
-      [data.candidateId, "candidate", data.message]
-    );
+    try {
+      await pool.query(
+        `INSERT INTO support_messages(candidate_id, sender, message)
+         VALUES($1, $2, $3)`,
+        [data.candidateId, "candidate", data.message]
+      );
 
-    io.to("admins").emit("admin_receive_message", data);
-    console.log("📢 Sending admin notification");
-    io.to("admins").emit("new_admin_notification", {
-    candidateId: data.candidateId,
-    message: data.message,
-    username: data.username,
-    });
+      io.to("admins").emit("admin_receive_message", data);
 
-  } catch (err) {
-    console.error(err);
-  }
-});
+      console.log("📢 Sending admin notification");
+
+      io.to("admins").emit("new_admin_notification", {
+        candidateId: data.candidateId,
+        message: data.message,
+        username: data.username,
+      });
+
+    } catch (err) {
+      console.error(err);
+    }
+  });
 
   // Admin → Candidate
-socket.on("admin_message", async (data) => {
-  console.log("Admin:", data);
+  socket.on("admin_message", async (data) => {
+    console.log("Admin:", data);
 
-  try {
-    await pool.query(
-      `INSERT INTO support_messages(candidate_id, sender, message)
-       VALUES($1, $2, $3)`,
-      [data.candidateId, "admin", data.message]
+    try {
+      await pool.query(
+        `INSERT INTO support_messages(candidate_id, sender, message)
+         VALUES($1, $2, $3)`,
+        [data.candidateId, "admin", data.message]
+      );
+
+      console.log("Sending reply to room:", data.room);
+
+      io.to(data.room).emit(
+        "candidate_receive_message",
+        data
+      );
+
+      io.to(data.room).emit(
+        "new_candidate_notification",
+        {
+          candidateId: data.candidateId,
+          message: data.message,
+        }
+      );
+
+    } catch (err) {
+      console.error(err);
+    }
+  });
+
+  socket.on("end_chat", (data) => {
+    console.log("Ending chat for:", data.candidateId);
+
+    io.to(data.candidateId.toString()).emit(
+      "candidate_chat_closed"
     );
-    console.log("Sending reply to room:", data.room);
-    io.to(data.room).emit("candidate_receive_message", data);
-    io.to(data.room).emit("new_candidate_notification", {
-  candidateId: data.candidateId,
-  message: data.message,
-});
 
-  } catch (err) {
-    console.error(err);
-  }
-});
-socket.on("end_chat", (data) => {
-  console.log("Ending chat for:", data.candidateId);
-
-  io.to(data.candidateId.toString()).emit("candidate_chat_closed");
-
-  console.log("candidate_chat_closed emitted");
-});
+    console.log("candidate_chat_closed emitted");
+  });
 
   socket.on("disconnect", () => {
     console.log("🔴 Disconnected:", socket.id);
   });
 });
-    
 
 /* Start Server */
 
