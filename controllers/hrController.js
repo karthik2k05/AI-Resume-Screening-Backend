@@ -183,6 +183,64 @@ const getHROverview = async (req, res) => {
   }
 };
 
+//status
+const updateApplicationStatus = async (req, res) => {
+  try {
+    const { applicationId } = req.params;
+    const { status } = req.body;
+    const hrId = req.user.id;
+
+    const allowedStatuses = [
+      "Applied",
+      "Under Review",
+      "Shortlisted",
+      "Rejected",
+    ];
+
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid application status.",
+      });
+    }
+
+    const result = await pool.query(
+      `
+      UPDATE applications a
+      SET status = $1
+      FROM job_postings jp
+      WHERE a.application_id = $2
+        AND a.job_id = jp.id
+        AND jp.hr_id = $3
+      RETURNING a.application_id, a.status
+      `,
+      [status, applicationId, hrId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Application not found or you are not authorized.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Application status updated successfully.",
+      application: result.rows[0],
+    });
+  } catch (error) {
+    console.error("Update Application Status Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+  }
+};
+
+
 module.exports = {
   getHROverview,
+  updateApplicationStatus,
 };
