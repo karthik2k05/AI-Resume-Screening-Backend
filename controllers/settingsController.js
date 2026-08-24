@@ -4,18 +4,37 @@ const pool = require("../config/db");
 const getProfile = async (req, res) => {
   try {
     const userId = req.user.id;
+const role = req.user.role?.toLowerCase();
 
-    const result = await pool.query(
-      `SELECT
-          user_id,
-          name,
-          email,
-          role,
-          created_at
-       FROM users
-       WHERE user_id = $1`,
-      [userId]
-    );
+let result;
+
+if (role === "candidate") {
+  result = await pool.query(
+    `SELECT user_id AS id, name, email, role, created_at
+     FROM users
+     WHERE user_id = $1`,
+    [userId]
+  );
+} else if (role === "hr") {
+  result = await pool.query(
+    `SELECT id, name, email, 'hr' AS role, created_at
+     FROM hrs
+     WHERE id = $1`,
+    [userId]
+  );
+} else if (role === "admin") {
+  result = await pool.query(
+    `SELECT id, name, email, 'admin' AS role, created_at
+     FROM admins
+     WHERE id = $1`,
+    [userId]
+  );
+} else {
+  return res.status(400).json({
+    success: false,
+    message: "Invalid user role",
+  });
+}
 
     if (result.rows.length === 0) {
       return res.status(404).json({

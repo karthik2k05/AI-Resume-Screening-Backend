@@ -587,9 +587,12 @@ const getApplicantsByJob = async (req, res) => {
     const result = await pool.query(
       `
       SELECT
+        a.application_id,
         u.user_id,
         u.name,
-        a.applied_at
+        a.applied_at,
+        a.match_score,
+        a.status
       FROM applications a
       JOIN users u
         ON a.user_id = u.user_id
@@ -605,7 +608,98 @@ const getApplicantsByJob = async (req, res) => {
     });
 
   } catch (error) {
-    console.error(error);
+    console.error("Get Applicants Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+  }
+};
+
+//status changes
+const updateApplicationStatus = async (req, res) => {
+  try {
+    const { applicationId } = req.params;
+    const { status } = req.body;
+    const hrId = req.user.id;
+
+    const allowedStatuses = [
+      "Applied",
+      "Under Review",
+      "Shortlisted",
+      "Rejected",
+    ];
+
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid application status.",
+      });
+    }
+
+    // Make sure this application belongs to a job created by this HR
+    const applicationResult = await pool.query(
+      `
+      SELECT
+        a.application_id,
+        a.user_id,
+        a.job_id,
+        j.title,
+        j.hr_id
+      FROM applications a
+      JOIN job_postings j
+        ON a.job_id = j.id
+      WHERE a.application_id = $1
+      AND j.hr_id = $2
+      `,
+      [applicationId, hrId]
+    );
+
+    if (applicationResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Application not found or unauthorized.",
+      });
+    }
+
+    const application = applicationResult.rows[0];
+
+    // Update status
+    const result = await pool.query(
+      `
+      UPDATE applications
+      SET status = $1
+      WHERE application_id = $2
+      RETURNING application_id, status
+      `,
+      [status, applicationId]
+    );
+
+    // Notify candidate
+    await pool.query(
+      `
+      INSERT INTO notifications
+      (user_id, user_role, title, message, type, is_read)
+      VALUES ($1, $2, $3, $4, $5, false)
+      `,
+      [
+        application.user_id,
+        "candidate",
+        "Application Status Updated",
+        `Your application for ${application.title} is now ${status}.`,
+        "application_status",
+      ]
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Application status updated successfully.",
+      application: result.rows[0],
+    });
+
+  } catch (error) {
+    console.error("Update application status error:", error);
 
     return res.status(500).json({
       success: false,
@@ -617,9 +711,10 @@ const getApplicantsByJob = async (req, res) => {
 module.exports = {
   uploadResume,
   getMyApplications,
-  getLatestResume,
   applyJob,
   getRecommendedJobs,
+  getLatestResume,
   getProfile,
   getApplicantsByJob,
+  updateApplicationStatus,
 };
