@@ -5,8 +5,8 @@ import { check } from "k6";
 const resume = open("../test-resume.pdf", "b");
 
 export const options = {
-  vus: 1,
-  duration: "10s",
+  vus: 10,
+  duration: "5s",
 };
 
 export default function () {
